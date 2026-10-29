@@ -1,0 +1,3545 @@
+<!doctype html>
+<!-- Refactoring UI C: existing plain HTML/Qt WebEngine + CSS variables, no Tailwind or component library.
+Primary content: conversation / model alias / action. Secondary: account selection. Tertiary: totals and connection metadata.
+Monochrome and square corners retained. Main-view spacing 4/8/12/16/24/32px; text 12/14/16/24px.
+P1 hierarchy §2.1/2.4: compact header and counts. P1 layout §3.6: group actions beside the state they resolve.
+P1 finishing §5.7: disabled switch has explicit reason and visible review action; authorization unchanged.
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Arena2API · 账号工作台</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101010;
+        --panel: #171717;
+        --line: #343434;
+        --muted: #a6a6a6;
+        --text: #ededed;
+        --accent: #ededed;
+        --blue: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          13px/1.6 "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        border: 1px solid #484848;
+        background: #222;
+        color: #eee;
+        border-radius: 2px;
+        padding: 8px 13px;
+        transition: background 0.12s;
+        white-space: nowrap;
+      }
+      button:hover {
+        background: #333;
+        border-color: #888;
+      }
+      button:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+      }
+      .primary {
+        background: #e8e8e8;
+        border-color: #e8e8e8;
+        color: #111;
+        font-weight: 650;
+      }
+      .primary:hover {
+        background: #fff;
+        color: #000;
+      }
+      .quiet {
+        background: transparent;
+      }
+      .small {
+        font-size: 12px;
+        padding: 5px 10px;
+      }
+      input,
+      select {
+        width: 100%;
+        border: 1px solid #464646;
+        border-radius: 2px;
+        padding: 9px 11px;
+        background: #111;
+        color: #eee;
+        outline: none;
+      }
+      input[type="checkbox"] {
+        width: auto;
+        accent-color: #ddd;
+      }
+      :focus-visible {
+        outline: 2px solid #ddd;
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        color: #ccc;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.6px;
+      }
+      h2 {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      h3 {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      p {
+        margin-top: 5px;
+      }
+      .muted,
+      .meta {
+        color: var(--muted);
+      }
+      .meta {
+        font-size: 11px;
+      }
+      .eyebrow {
+        font:
+          10px/1.6 Consolas,
+          monospace;
+        letter-spacing: 2px;
+        color: #aaa;
+        margin-bottom: 6px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .app {
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 192px minmax(0, 1fr);
+        overflow: hidden;
+      }
+      .sidebar {
+        background: #141414;
+        border-right: 1px solid var(--line);
+        padding: 27px 16px;
+        display: flex;
+        flex-direction: column;
+        overflow: auto;
+      }
+      .brand {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        font-size: 16px;
+        font-weight: 650;
+      }
+      .brand small {
+        display: block;
+        font:
+          8px Consolas,
+          monospace;
+        letter-spacing: 1.5px;
+        color: #aaa;
+      }
+      .mark {
+        background: #e5e5e5;
+        color: #111;
+        width: 30px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+      }
+      .sidefoot {
+        margin-top: auto;
+        padding-top: 40px;
+        font-size: 10px;
+        color: #999;
+      }
+      .sidefoot b {
+        font-weight: 400;
+        color: #ccc;
+      }
+      .sidefoot p {
+        line-height: 1.8;
+        margin-bottom: 14px;
+      }
+      nav {
+        display: grid;
+        gap: 5px;
+        margin-top: 44px;
+      }
+      nav button {
+        text-align: left;
+        border: 1px solid transparent;
+        background: transparent;
+        color: #aaa;
+        padding: 11px 9px;
+      }
+      nav button.active {
+        color: #fff;
+        background: #292929;
+        border-color: #414141;
+        box-shadow: inset 2px 0 #eee;
+      }
+      main {
+        overflow: auto;
+        min-width: 0;
+        padding: 30px 34px;
+        scrollbar-gutter: stable;
+      }
+      .page {
+        display: none;
+        max-width: 1500px;
+        margin: auto;
+      }
+      .page.active {
+        display: block;
+      }
+      .pagehead {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .pagehead .muted {
+        font-size: 12px;
+        margin-top: 8px;
+      }
+      .actions,
+      .headtools {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .hero {
+        padding: 14px 17px;
+        border: 1px solid #414141;
+        background: #181818;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .hero h2 {
+        font-size: 13px;
+      }
+      .hero p {
+        font-size: 11px;
+        color: #aaa;
+      }
+      .pill {
+        display: inline-block;
+        border: 1px solid #484848;
+        color: #bbb;
+        font-size: 10px;
+        padding: 2px 7px;
+        white-space: nowrap;
+        letter-spacing: 0.3px;
+      }
+      .pill.good {
+        background: #292929;
+        color: #f0f0f0;
+        border-color: #777;
+      }
+      .pill.warn {
+        background: #2c2c2c;
+        border-style: dashed;
+        color: #fff;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border: 1px solid var(--line);
+        margin: 16px 0 24px;
+      }
+      .metric {
+        display: flex;
+        gap: 14px;
+        align-items: baseline;
+        padding: 14px 18px;
+        border-right: 1px solid var(--line);
+        background: #151515;
+      }
+      .metric:last-child {
+        border: 0;
+      }
+      .metric b {
+        font:
+          26px/1.2 Consolas,
+          monospace;
+        font-weight: 400;
+      }
+      .metric span {
+        font-size: 11px;
+        color: #aaa;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        margin: 18px 0 12px;
+      }
+      .filters {
+        display: flex;
+        gap: 8px;
+        width: 48%;
+      }
+      .filters input {
+        font-size: 12px;
+      }
+      .filters select {
+        width: 120px;
+        font-size: 12px;
+      }
+      .stat {
+        font-size: 11px;
+        color: #aaa;
+      }
+      .card {
+        border: 1px solid var(--line);
+        background: #171717;
+      }
+      .cardhead {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 15px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      .cardbody {
+        padding: 20px;
+      }
+      .section {
+        max-width: 1050px;
+      }
+      .spaced {
+        margin-top: 20px;
+      }
+      .account-layout {
+        display: grid;
+        grid-template-columns: 265px minmax(0, 1fr);
+        border: 1px solid #3b3b3b;
+        min-height: 370px;
+        background: #171717;
+      }
+      .account-index {
+        border-right: 1px solid #3b3b3b;
+        background: #141414;
+      }
+      .list-heading {
+        height: 43px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 15px;
+        border-bottom: 1px solid #333;
+        font:
+          10px Consolas,
+          monospace;
+        letter-spacing: 1px;
+        color: #999;
+      }
+      .account-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        padding: 16px 14px;
+        border-bottom: 1px solid #303030;
+        align-items: center;
+        box-shadow: inset 2px 0 transparent;
+      }
+      .account-item.selected {
+        background: #252525;
+        box-shadow: inset 2px 0 #e8e8e8;
+      }
+      .account-select {
+        min-width: 0;
+        text-align: left;
+        border: 0;
+        padding: 0;
+        background: none !important;
+        white-space: normal;
+      }
+      .account-select strong {
+        font-size: 13px;
+        font-weight: 600;
+        display: block;
+        overflow-wrap: anywhere;
+      }
+      .account-select small {
+        display: block;
+        color: #aaa;
+        font-size: 10px;
+        margin-top: 5px;
+      }
+      .account-dot {
+        display: inline-block;
+        width: 5px;
+        height: 5px;
+        background: #c5c5c5;
+        margin-right: 6px;
+      }
+      .account-dot.off {
+        background: transparent;
+        border: 1px solid #999;
+      }
+      .toggle {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        border: 0;
+        padding: 5px 2px;
+        background: none !important;
+        font-size: 11px;
+        color: #bcbcbc;
+      }
+      .toggle-track {
+        width: 27px;
+        height: 14px;
+        background: #363636;
+        border: 1px solid #666;
+        position: relative;
+        flex-shrink: 0;
+      }
+      .toggle-track:after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 8px;
+        height: 8px;
+        background: #999;
+      }
+      .toggle[aria-checked="true"] .toggle-track {
+        background: #d2d2d2;
+        border-color: #ddd;
+      }
+      .toggle[aria-checked="true"] .toggle-track:after {
+        left: 15px;
+        background: #222;
+      }
+      .toggle[aria-checked="true"] {
+        color: #eee;
+      }
+      .account-detail {
+        min-width: 0;
+      }
+      .detail-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--line);
+        gap: 12px;
+      }
+      .detail-heading h2 {
+        font-size: 17px;
+      }
+      .detail-heading p {
+        font-size: 11px;
+        color: #aaa;
+      }
+      .source {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 20px;
+        border-bottom: 1px solid #303030;
+        background: #191919;
+      }
+      .source-meta {
+        font-size: 11px;
+        color: #ccc;
+      }
+      .source p {
+        font-size: 10px;
+        margin: 0;
+        color: #929292;
+      }
+      .table-scroll {
+        overflow: auto;
+      }
+      .conversation-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      .conversation-table th {
+        padding: 11px 14px;
+        font-size: 10px;
+        color: #a1a1a1;
+        font-weight: 500;
+        background: #131313;
+        border-bottom: 1px solid #383838;
+        white-space: nowrap;
+      }
+      .conversation-table td {
+        padding: 16px 14px;
+        border-bottom: 1px solid #303030;
+        vertical-align: top;
+      }
+      .conversation-table tr:last-child td {
+        border-bottom: 0;
+      }
+      .conversation-table tbody tr:hover {
+        background: #1c1c1c;
+      }
+      .conversation-table th:first-child,
+      .conversation-table td:first-child {
+        padding-left: 20px;
+      }
+      .conversation-table td:first-child {
+        min-width: 180px;
+        max-width: 400px;
+      }
+      .conversation-table td:nth-child(2) {
+        min-width: 160px;
+      }
+      .conversation-table td:nth-child(3) {
+        min-width: 105px;
+      }
+      .route h3 {
+        font-size: 13px;
+        font-weight: 500;
+        overflow-wrap: anywhere;
+      }
+      .route .meta {
+        margin-top: 5px;
+      }
+      .alias {
+        font:
+          12px Consolas,
+          monospace;
+        color: #eee;
+        word-break: break-all;
+        display: block;
+        margin-bottom: 7px;
+      }
+      .route details {
+        margin-top: 9px;
+      }
+      .route summary {
+        font-size: 10px;
+        color: #aaa;
+        cursor: pointer;
+      }
+      .route details .actions {
+        margin-top: 8px;
+      }
+      .routehint {
+        font-size: 11px;
+        margin: 10px 0;
+        color: #ddd;
+      }
+      .route td .actions {
+        gap: 5px;
+      }
+      .empty {
+        padding: 35px 20px;
+        text-align: center;
+        color: #999;
+        font-size: 12px;
+      }
+      .empty b {
+        display: block;
+        color: #eee;
+        font-size: 15px;
+        margin-bottom: 7px;
+      }
+      .notice {
+        border: 1px solid #4d4d4d;
+        background: #252525;
+        color: #d4d4d4;
+        padding: 11px 15px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+      .error {
+        border-left: 3px solid #eee;
+        background: #282828;
+      }
+      .endpoint {
+        margin-top: 20px;
+        padding: 15px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+      }
+      .endpoint code {
+        font:
+          13px Consolas,
+          monospace;
+        color: #ddd;
+        overflow-wrap: anywhere;
+      }
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 16px;
+        font-size: 10px;
+        color: #929292;
+      }
+      .form {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr);
+        gap: 16px;
+        align-items: center;
+      }
+      .form .full {
+        grid-column: 1/-1;
+      }
+      .form p {
+        font-size: 12px;
+        color: #aaa;
+      }
+      .bridge-row {
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+      }
+      .pre {
+        background: #111;
+        border: 1px solid #363636;
+        padding: 16px;
+        font:
+          12px/1.8 Consolas,
+          "Microsoft YaHei",
+          monospace;
+        color: #ccc;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        max-height: 400px;
+        overflow: auto;
+      }
+      .logbar {
+        display: grid;
+        grid-template-columns: 200px 1fr auto;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #000b;
+      }
+      .dialog {
+        width: min(760px, 100%);
+        max-height: 92vh;
+        overflow: auto;
+        background: #1b1b1b;
+        border: 1px solid #666;
+        box-shadow: 0 24px 80px #0009;
+      }
+      .dialoghead {
+        padding: 20px;
+        border-bottom: 1px solid #414141;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .dialogbody {
+        padding: 20px;
+      }
+      .dialog label {
+        margin: 15px 0 7px;
+      }
+      .steps {
+        display: flex;
+        gap: 16px;
+        color: #999;
+        font-size: 11px;
+        margin-bottom: 18px;
+      }
+      .steps span {
+        border-bottom: 1px solid #555;
+        flex: 1;
+        padding-bottom: 10px;
+      }
+      .steps b {
+        color: #eee;
+      }
+      .history {
+        max-height: 260px;
+        overflow: auto;
+        margin: 12px 0;
+        border: 1px solid var(--line);
+      }
+      .history button {
+        display: block;
+        text-align: left;
+        background: transparent;
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid #333;
+        border-radius: 0;
+        padding: 12px 14px;
+      }
+      .history button.selected {
+        background: #333;
+        box-shadow: inset 2px 0 #ddd;
+      }
+      .history b {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .history small {
+        color: #aaa;
+        font-size: 10px;
+      }
+      .bottom {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        align-items: center;
+        margin-top: 18px;
+      }
+      .choice {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 16px 0;
+      }
+      .choice button {
+        text-align: left;
+        padding: 16px;
+        white-space: normal;
+      }
+      .choice small {
+        display: block;
+        color: #aaa;
+        margin-top: 5px;
+      }
+      .wizard-source {
+        padding: 12px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #333;
+      }
+      .catalog {
+        padding: 14px 20px;
+        border-top: 1px solid #3b3b3b;
+        background: #141414;
+      }
+      .catalog-top {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .catalog-top b {
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .catalog-top button {
+        margin-left: auto;
+      }
+      .catalog input {
+        font-size: 11px;
+        padding: 7px 10px;
+      }
+      .catalog-list {
+        max-height: 220px;
+        overflow: auto;
+      }
+      .catalog-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #303030;
+      }
+      .catalog-title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: 85vw;
+        padding: 11px 18px;
+        color: #111;
+        background: #e7e7e7;
+        border: 1px solid #fff;
+        box-shadow: 0 8px 35px #0009;
+        z-index: 30;
+      }
+      .status-foot {
+        border-top: 1px solid var(--line);
+        padding: 12px 20px;
+        font-size: 10px;
+        color: #aaa;
+      }
+      .list-note {
+        padding: 13px 15px;
+        font-size: 10px;
+        color: #aaa;
+      }
+      .count {
+        font:
+          10px Consolas,
+          monospace;
+        color: #ccc;
+      }
+      .model-editor {
+        max-width: 480px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+      @media (max-width: 1150px) {
+        .app {
+          grid-template-columns: 164px minmax(0, 1fr);
+        }
+        main {
+          padding: 24px 20px;
+        }
+        .account-layout {
+          grid-template-columns: 220px minmax(0, 1fr);
+        }
+        .account-item {
+          padding: 14px 10px;
+        }
+        .detail-heading {
+          padding: 16px;
+        }
+        .conversation-table td,
+        .conversation-table th {
+          padding: 13px 10px;
+        }
+        .pagehead {
+          align-items: flex-start;
+        }
+      }
+      @media (max-width: 850px) {
+        .app {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto minmax(0, 1fr);
+        }
+        .sidebar {
+          padding: 8px 14px;
+          border-right: 0;
+          border-bottom: 1px solid #333;
+        }
+        .brand,
+        .sidefoot {
+          display: none;
+        }
+        nav {
+          display: flex;
+          margin: 0;
+          gap: 5px;
+        }
+        nav button {
+          font-size: 12px;
+          padding: 8px 10px;
+        }
+        main {
+          padding: 20px 15px;
+        }
+        .account-layout {
+          grid-template-columns: 1fr;
+        }
+        .account-index {
+          border-right: 0;
+          border-bottom: 1px solid #555;
+        }
+        .account-item {
+          padding: 10px 15px;
+        }
+        .account-select small {
+          display: inline;
+          margin-left: 12px;
+        }
+        .pagehead,
+        .hero,
+        .toolbar {
+          flex-wrap: wrap;
+        }
+        .filters {
+          width: 100%;
+        }
+        .headtools {
+          gap: 6px;
+        }
+        .metric {
+          padding: 12px;
+        }
+        .metric b {
+          font-size: 23px;
+        }
+        .form {
+          grid-template-columns: 1fr;
+        }
+        .form .full {
+          grid-column: auto;
+        }
+        .logbar,
+        .choice {
+          grid-template-columns: 1fr;
+        }
+        .endpoint {
+          flex-wrap: wrap;
+        }
+        .source {
+          padding: 10px 15px;
+        }
+        .list-note {
+          display: none;
+        }
+      }
+      /* Refactoring UI §2.1/2.4/3.2/3.6/4.1/5.7/8.4.
+   Primary: conversation + exposed model + next action. Secondary: account selection.
+   Tertiary: connection metadata and totals. One primary action: add account.
+   Preserve monochrome, native HTML, existing variables and all authorization semantics. */
+      :root {
+        --bg: #111111;
+        --panel: #181818;
+        --line: #353535;
+        --text: #f0f0f0;
+        --muted: #b0b0b0;
+        --soft: #999999;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        --type-small: 12px;
+        --type-body: 14px;
+        --type-title: 24px;
+        --radius: 0px;
+      }
+      body {
+        font-size: var(--type-body);
+        line-height: 1.5;
+        color: var(--text);
+      }
+      button,
+      input,
+      select {
+        border-radius: var(--radius);
+        min-height: 36px;
+        padding: 8px 12px;
+        font-size: var(--type-small);
+      }
+      button {
+        font-weight: 400;
+      }
+      button.primary,
+      strong,
+      b,
+      h1,
+      h2 {
+        font-weight: 600;
+      }
+      button:disabled {
+        opacity: 0.45;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--text);
+        outline-offset: 3px;
+      }
+      input::placeholder {
+        color: var(--soft);
+      }
+      h1 {
+        font-size: var(--type-title);
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+      h2 {
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      h3 {
+        font-size: var(--type-body);
+        font-weight: 600;
+      }
+      .meta,
+      .muted,
+      .stat,
+      .foot {
+        color: var(--muted);
+        font-size: var(--type-small);
+      }
+      .app {
+        grid-template-columns: 176px minmax(0, 1fr);
+      }
+      .sidebar {
+        padding: 24px 16px;
+        background: #141414;
+        gap: 0;
+      }
+      .brand {
+        font-size: 16px;
+        gap: 8px;
+      }
+      .brand small {
+        font-size: 8px;
+        letter-spacing: 1px;
+        color: var(--muted);
+      }
+      .mark {
+        width: 28px;
+        height: 32px;
+      }
+      nav {
+        margin-top: 32px;
+        gap: 8px;
+      }
+      nav button {
+        padding: 12px 8px;
+        color: var(--muted);
+        font-size: 12px;
+        min-height: 44px;
+      }
+      .sidefoot {
+        font-size: 12px;
+        color: var(--muted);
+        padding-top: 24px;
+      }
+      .sidefoot p {
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+      .sidefoot b {
+        color: var(--text);
+      }
+      main {
+        padding: 24px;
+        scrollbar-gutter: stable;
+      }
+      .page {
+        max-width: 1600px;
+      }
+      .pagehead {
+        margin-bottom: 16px;
+        gap: 16px;
+      }
+      .pagehead .muted {
+        margin-top: 4px;
+        font-size: 12px;
+      }
+      .pagehead .eyebrow {
+        display: none;
+      }
+      .headtools {
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .headtools .primary {
+        min-height: 40px;
+      }
+      .hero {
+        padding: 12px 16px;
+        gap: 16px;
+        background: var(--panel);
+        border-color: var(--line);
+      }
+      .hero h2 {
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .hero .actions {
+        gap: 8px;
+      }
+      .hero p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+        max-width: 70ch;
+      }
+      .hero > button {
+        background: transparent;
+        min-height: 36px;
+      }
+      .pill {
+        font-size: 12px;
+        letter-spacing: 0;
+        padding: 2px 8px;
+        color: var(--muted);
+        border-color: var(--line);
+        line-height: 1.5;
+      }
+      .pill.good {
+        background: #242424;
+        color: var(--text);
+        border-color: #565656;
+      }
+      .pill.warn {
+        background: #282828;
+        color: var(--text);
+        border-style: solid;
+      }
+      .metrics {
+        display: flex;
+        align-items: baseline;
+        gap: 24px;
+        border: 0;
+        background: transparent;
+        margin: 8px 0 16px;
+        padding: 0;
+      }
+      .metric {
+        background: none;
+        border: 0;
+        padding: 0;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .metric b {
+        font:
+          600 14px/1.5 "Segoe UI",
+          sans-serif;
+      }
+      .metric span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .toolbar {
+        gap: 16px;
+        margin: 0 0 12px;
+        align-items: center;
+      }
+      .toolbar h2 {
+        font-size: 14px;
+      }
+      .filters {
+        width: auto;
+        flex: 0 1 440px;
+        gap: 8px;
+      }
+      .filters input {
+        min-width: 0;
+      }
+      .filters select {
+        width: 124px;
+        flex-shrink: 0;
+      }
+      .account-layout {
+        grid-template-columns: 224px minmax(0, 1fr);
+        min-height: 360px;
+        border-color: var(--line);
+      }
+      .account-index {
+        border-color: var(--line);
+        background: #151515;
+        min-width: 0;
+      }
+      .list-heading {
+        height: 40px;
+        padding: 0 16px;
+        letter-spacing: 0;
+        font:
+          12px/1.5 "Segoe UI",
+          sans-serif;
+        color: var(--muted);
+      }
+      .account-item {
+        padding: 16px 12px;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        min-height: 80px;
+      }
+      .account-select {
+        padding: 0;
+        min-height: 44px;
+      }
+      .account-select strong {
+        font-size: 14px;
+      }
+      .account-select small {
+        font-size: 12px;
+        margin-top: 4px;
+        color: var(--muted);
+      }
+      .account-dot {
+        width: 6px;
+        height: 6px;
+      }
+      .account-item.selected {
+        background: #292929;
+        box-shadow: inset 2px 0 var(--text);
+      }
+      .toggle {
+        gap: 8px;
+        padding: 8px 0;
+        min-height: 40px;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .toggle-track {
+        width: 32px;
+        height: 18px;
+        border-color: #777;
+      }
+      .toggle-track:after {
+        width: 12px;
+        height: 12px;
+        top: 2px;
+        left: 2px;
+      }
+      .toggle[aria-checked="true"] .toggle-track:after {
+        left: 16px;
+      }
+      .account-item .toggle {
+        gap: 4px;
+        flex-direction: column;
+        font-size: 12px;
+        line-height: 1.25;
+        min-width: 44px;
+      }
+      .list-note {
+        padding: 16px;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 32ch;
+      }
+      .detail-heading {
+        padding: 16px;
+        gap: 12px;
+      }
+      .detail-heading h2 {
+        font-size: 16px;
+      }
+      .detail-heading p {
+        font-size: 12px;
+        margin-top: 4px;
+        color: var(--muted);
+      }
+      .source {
+        padding: 8px 16px;
+        gap: 12px;
+        background: transparent;
+      }
+      .source-meta {
+        font-size: 12px;
+        color: var(--text);
+      }
+      .source p {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .source > button {
+        background: transparent;
+      }
+      .conversation-table {
+        table-layout: auto;
+      }
+      .conversation-table th {
+        font-size: 12px;
+        padding: 12px;
+        color: var(--muted);
+        background: #151515;
+      }
+      .conversation-table td {
+        padding: 16px 12px;
+        vertical-align: top;
+      }
+      .conversation-table th:first-child,
+      .conversation-table td:first-child {
+        padding-left: 16px;
+      }
+      .conversation-table td:first-child {
+        min-width: 160px;
+        max-width: 360px;
+        width: 34%;
+      }
+      .conversation-table td:nth-child(2) {
+        min-width: 152px;
+        width: 23%;
+      }
+      .conversation-table td:nth-child(3) {
+        min-width: 116px;
+        width: 18%;
+      }
+      .conversation-table td:nth-child(4) {
+        min-width: 160px;
+        width: 25%;
+      }
+      .route h3 {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.5;
+      }
+      .route .meta {
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .alias {
+        font:
+          600 14px/1.5 Consolas,
+          monospace;
+        letter-spacing: 0;
+        margin-bottom: 8px;
+        white-space: normal;
+      }
+      .route .model-edit {
+        padding: 4px 0;
+        min-height: 28px;
+        color: var(--muted);
+        border: 0;
+        background: transparent;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .route .model-edit:hover {
+        color: var(--text);
+      }
+      .route .model-edit:disabled {
+        text-decoration: none;
+      }
+      .route details {
+        margin-top: 8px;
+      }
+      .route summary {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .route details .actions {
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .routehint {
+        font-size: 12px;
+        line-height: 1.6;
+        margin: 8px 0 0;
+        color: var(--muted);
+        max-width: 50ch;
+      }
+      .switch-reason {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: normal;
+        max-width: 24ch;
+        margin: 4px 0 8px;
+      }
+      .review-action {
+        background: #303030;
+        border-color: #777;
+        color: var(--text);
+        font-weight: 600;
+        min-height: 36px;
+        padding: 8px 12px;
+      }
+      .review-action:disabled {
+        font-weight: 400;
+      }
+      .route-needs-review {
+        box-shadow: inset 2px 0 #aaa;
+      }
+      .status-foot {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 12px 16px;
+        border-top: 1px solid var(--line);
+        line-height: 1.6;
+      }
+      .catalog {
+        padding: 16px;
+        background: #151515;
+      }
+      .catalog-top {
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .catalog-top b {
+        font-size: 14px;
+      }
+      .catalog-top .meta {
+        font-size: 12px;
+      }
+      .catalog > input {
+        max-width: 440px;
+      }
+      .catalog-title {
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .catalog-row {
+        padding: 12px 0;
+        gap: 12px;
+      }
+      .catalog-list {
+        max-height: 320px;
+        overflow: auto;
+      }
+      .empty {
+        padding: 24px 16px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .empty b {
+        font-size: 16px;
+      }
+      .endpoint {
+        padding: 12px 16px;
+        margin-top: 16px;
+        gap: 16px;
+      }
+      .endpoint code {
+        font-size: 12px;
+      }
+      .foot {
+        margin-top: 12px;
+        font-size: 12px;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .notice {
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .cardbody p {
+        max-width: 75ch;
+      }
+      .small {
+        font-size: 12px;
+        padding: 4px 8px;
+        min-height: 32px;
+      }
+      .dialoghead .eyebrow {
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+      .dialog label,
+      .dialog p,
+      .steps {
+        font-size: 12px;
+      }
+      .history small {
+        font-size: 12px;
+      }
+      .dialoghead,
+      .dialogbody {
+        padding: 24px;
+      }
+      .dialog {
+        border-radius: 0;
+      }
+      @media (max-width: 1150px) {
+        .app {
+          grid-template-columns: 152px minmax(0, 1fr);
+        }
+        .sidebar {
+          padding: 24px 12px;
+        }
+        main {
+          padding: 20px;
+        }
+        .account-layout {
+          grid-template-columns: 192px minmax(0, 1fr);
+        }
+        .account-item {
+          padding: 12px;
+        }
+        .brand {
+          font-size: 14px;
+        }
+        .brand small {
+          display: none;
+        }
+        .conversation-table td:first-child {
+          min-width: 160px;
+        }
+        .headtools {
+          gap: 8px;
+        }
+      }
+      @media (max-width: 800px) {
+        .app {
+          height: auto;
+          min-height: 100vh;
+          display: block;
+          overflow: visible;
+        }
+        .sidebar {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          padding: 12px 16px;
+          gap: 16px;
+          overflow: visible;
+        }
+        .sidebar .sidefoot {
+          display: none;
+        }
+        .sidebar .mark {
+          display: none;
+        }
+        .sidebar nav {
+          display: flex;
+          margin: 0;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+        .sidebar nav button {
+          font-size: 12px;
+          min-height: 40px;
+          padding: 8px;
+        }
+        .sidebar nav button span {
+          display: none;
+        }
+        main {
+          padding: 16px;
+          overflow: visible;
+        }
+        .account-layout {
+          grid-template-columns: 176px minmax(0, 1fr);
+        }
+        .pagehead {
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .headtools {
+          flex-wrap: wrap;
+        }
+        .filters {
+          flex: 1;
+        }
+        .metrics {
+          gap: 16px;
+        }
+        .hero {
+          align-items: flex-start;
+        }
+      }
+      @media (max-width: 640px) {
+        .sidebar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+        .sidebar nav {
+          width: 100%;
+          justify-content: space-between;
+        }
+        .sidebar nav button {
+          padding: 8px 12px;
+        }
+        .pagehead {
+          margin-bottom: 16px;
+        }
+        .pagehead h1 {
+          font-size: 24px;
+        }
+        .headtools {
+          width: 100%;
+          justify-content: flex-end;
+        }
+        .hero {
+          flex-wrap: wrap;
+          padding: 12px;
+        }
+        .hero > button {
+          min-height: 40px;
+        }
+        .hero .actions {
+          gap: 4px 8px;
+        }
+        .metrics {
+          gap: 16px;
+          flex-wrap: wrap;
+          margin: 12px 0 16px;
+        }
+        .metric {
+          gap: 4px;
+        }
+        .toolbar {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .filters {
+          flex-basis: 100%;
+          width: 100%;
+        }
+        .filters select {
+          width: 112px;
+        }
+        .account-layout {
+          display: block;
+          min-height: 0;
+        }
+        .account-index {
+          display: flex;
+          overflow-x: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .account-index .list-heading,
+        .account-index .list-note {
+          display: none;
+        }
+        .account-item {
+          flex: 0 0 176px;
+          border-bottom: 0;
+          border-right: 1px solid var(--line);
+          min-height: 88px;
+          padding: 12px;
+        }
+        .account-item.selected {
+          box-shadow: inset 0 -2px 0 var(--text);
+        }
+        .detail-heading {
+          padding: 16px 12px;
+          flex-wrap: wrap;
+        }
+        .detail-heading .pill {
+          white-space: normal;
+        }
+        .source {
+          padding: 8px 12px;
+        }
+        .table-scroll {
+          overflow: visible;
+        }
+        .conversation-table,
+        .conversation-table tbody {
+          display: block;
+          width: 100%;
+        }
+        .conversation-table thead {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+        }
+        .conversation-table tr {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 0;
+          border-bottom: 1px solid var(--line);
+          padding: 16px 12px;
+        }
+        .conversation-table td,
+        .conversation-table td:first-child,
+        .conversation-table td:nth-child(2),
+        .conversation-table td:nth-child(3),
+        .conversation-table td:nth-child(4) {
+          display: block;
+          padding: 0;
+          border: 0;
+          min-width: 0;
+          max-width: none;
+          width: auto;
+        }
+        .conversation-table td:first-child {
+          grid-column: 1/-1;
+          margin-bottom: 16px;
+        }
+        .conversation-table td:nth-child(2) {
+          grid-column: 1;
+          margin-right: 12px;
+        }
+        .conversation-table td:nth-child(3) {
+          grid-column: 1;
+          margin-top: 8px;
+          margin-right: 12px;
+        }
+        .conversation-table td:nth-child(4) {
+          grid-column: 2;
+          grid-row: 2/4;
+          border-left: 1px solid var(--line);
+          padding-left: 12px;
+        }
+        .conversation-table td:nth-child(2):before {
+          content: "对外模型名";
+          display: block;
+          color: var(--muted);
+          font-size: 12px;
+          margin-bottom: 4px;
+        }
+        .switch-reason {
+          max-width: none;
+        }
+        .route-needs-review {
+          box-shadow: inset 2px 0 #aaa;
+        }
+        .route .actions {
+          flex-wrap: wrap;
+        }
+        .catalog {
+          padding: 16px 12px;
+        }
+        .catalog-top {
+          flex-wrap: wrap;
+        }
+        .catalog-row {
+          align-items: flex-start;
+        }
+        .catalog-title {
+          overflow-wrap: anywhere;
+          min-width: 0;
+        }
+        .catalog-row button {
+          flex-shrink: 0;
+        }
+        .status-foot {
+          padding: 12px;
+          font-size: 12px;
+        }
+        .endpoint {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .form {
+          grid-template-columns: 1fr;
+        }
+        .form .full {
+          grid-column: 1;
+        }
+        .logbar {
+          grid-template-columns: 1fr;
+        }
+        .cardhead {
+          flex-wrap: wrap;
+          padding: 12px;
+        }
+        .cardbody {
+          padding: 16px;
+        }
+        .overlay {
+          padding: 12px;
+        }
+        .dialog {
+          max-height: 95vh;
+        }
+        .dialoghead,
+        .dialogbody {
+          padding: 16px;
+        }
+        .choice {
+          grid-template-columns: 1fr;
+        }
+        .bottom {
+          flex-wrap: wrap;
+        }
+        .steps {
+          gap: 8px;
+        }
+        .bridge-row {
+          padding: 16px;
+          flex-wrap: wrap;
+        }
+        .foot {
+          font-size: 12px;
+        }
+      }
+
+      /* §2.4: de-emphasize connection detail and totals rather than enlarging the table. */
+      .hero {
+        padding: 8px 16px;
+        position: relative;
+      }
+      .hero > div {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .connection-details {
+        position: relative;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .connection-details summary {
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .connection-details[open] summary {
+        color: var(--text);
+      }
+      .connection-details p {
+        position: absolute;
+        left: 0;
+        top: 24px;
+        z-index: 3;
+        width: min(360px, 70vw);
+        padding: 12px;
+        background: #252525;
+        border: 1px solid #777;
+        box-shadow: 0 8px 24px #0008;
+        margin: 0;
+        color: var(--text);
+      }
+      .toolbar {
+        margin-top: 16px;
+      }
+      .toolbar .metrics {
+        margin: 0;
+        gap: 16px;
+      }
+      .toolbar > .actions {
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .detail-heading {
+        padding: 12px 16px;
+      }
+      .detail-heading > div {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        flex-wrap: wrap;
+      }
+      .detail-heading p {
+        margin: 0;
+      }
+      .conversation-table td {
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+      .account-item .toggle {
+        padding: 4px 0;
+      }
+      @media (max-width: 640px) {
+        .hero {
+          padding: 12px;
+        }
+        .hero > div {
+          gap: 8px;
+        }
+        .connection-details p {
+          left: auto;
+          right: 0;
+        }
+        .toolbar {
+          margin-top: 16px;
+        }
+        .toolbar .metrics {
+          gap: 12px;
+        }
+        .detail-heading {
+          padding: 16px 12px;
+        }
+        .detail-heading > div {
+          gap: 4px;
+        }
+        .conversation-table td {
+          padding-top: 0;
+          padding-bottom: 0;
+        }
+        .route details {
+          margin-top: 8px;
+        }
+      }
+      /* 状态点：在线 / 需处理 / 离线 */
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #666;
+        flex-shrink: 0;
+      }
+      .status-dot.good {
+        background: #4caf6a;
+      }
+      .status-dot.warn {
+        background: #d9a23b;
+      }
+      .account-dot {
+        border-radius: 50%;
+        background: #4caf6a;
+      }
+      .account-dot.off {
+        background: #666;
+      }
+      .account-dot.warn {
+        background: #d9a23b;
+      }
+      /* 说明文字收进 ? 提示 */
+      .tip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 6px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        font-size: 11px;
+        line-height: 1;
+        color: var(--muted);
+        cursor: help;
+        vertical-align: middle;
+      }
+      .tip:hover,
+      .tip:focus-visible {
+        color: var(--text);
+        border-color: var(--muted);
+      }
+      /* 设置页：高级区折叠 */
+      .advanced {
+        margin-top: 24px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+      .advanced > summary {
+        padding: 12px 16px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .advanced[open] > summary {
+        border-bottom: 1px solid var(--line);
+      }
+      .advanced-body {
+        padding: 16px;
+      }
+      /* 添加账号向导步骤 */
+      .steps span.done {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .wait-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .wizard-guide {
+        margin: 16px 0 8px;
+        padding-left: 20px;
+        line-height: 1.9;
+      }
+      .wizard-guide b {
+        font-family: Consolas, monospace;
+      }
+      #wizardGateway {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      #wizardGateway.hidden {
+        display: none;
+      }
+      .wizard-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">A</div>
+          <div>Arena2API<small>ACCOUNT WORKSPACE</small></div>
+        </div>
+        <nav>
+          <button class="active" data-page="home">01　账号与会话</button
+          ><button data-page="settings">02　设置</button
+          ><button data-page="diagnostics">03　请求与日志</button>
+        </nav>
+        <div class="sidefoot">
+          <span id="version">界面 0.6.0</span>
+        </div>
+      </aside>
+      <main id="mainScroll">
+        <div id="preview" class="notice hidden">界面预览：未连接桌面服务，不读取账号或启动进程。</div>
+        <div id="error" class="notice error hidden" role="alert"></div>
+        <div id="sendModeWarning" class="notice error hidden" role="alert"></div>
+        <section id="home" class="page active">
+          <header class="pagehead">
+            <div>
+              <div class="eyebrow">WORKSPACE / ROUTING</div>
+              <h1>账号与会话</h1>
+            </div>
+            <div class="headtools">
+              <button id="refreshAccounts" class="quiet">刷新</button
+              ><button id="addAccount" class="primary">＋ 添加账号</button>
+            </div>
+          </header>
+          <div class="hero">
+            <div>
+              <div class="actions">
+                <span id="serviceDot" class="status-dot" aria-hidden="true"></span>
+                <span id="service" class="pill">网关未启动</span
+                ><span id="activeSendMode" class="pill">发送模式待核验</span>
+              </div>
+              <details class="connection-details">
+                <summary>详情</summary>
+                <p id="phase">账号与会话由各自开关控制，不会自动恢复已停用的会话。</p>
+              </details>
+            </div>
+            <button id="startWorkspace">启动 / 检查连接</button>
+          </div>
+          <div class="toolbar">
+            <div class="actions">
+              <div class="metrics">
+                <div class="metric"><b id="accountCount">0</b><span>账号</span></div>
+                <div class="metric"><b id="sourceCount">0</b><span>浏览器在线</span></div>
+                <div class="metric"><b id="routeCount">0</b><span>会话</span></div>
+              </div>
+              <span id="attentionCount" class="stat"></span
+              ><button id="collapseAccounts" class="hidden" aria-hidden="true" tabindex="-1">列表视图</button>
+            </div>
+            <div class="filters">
+              <input
+                id="accountSearch"
+                aria-label="搜索账号、会话或模型名"
+                placeholder="搜索账号、会话或模型名"
+              /><select id="accountFilter" aria-label="账号状态筛选">
+                <option value="all">全部账号</option>
+                <option value="attention">需要处理</option>
+                <option value="online">浏览器在线</option>
+              </select>
+            </div>
+          </div>
+          <div id="accountFeatureNote" class="notice hidden">
+            当前网关版本较旧，不支持账号开关和改模型名。请在空闲时重启网关。
+          </div>
+          <div id="accounts"></div>
+          <div class="card endpoint">
+            <div>
+              <div class="eyebrow">DSH / OPENAI BASE URL</div>
+              <code id="baseUrl">http://127.0.0.1:9090/v1</code>
+              <p class="meta">
+                客户端的 model 填会话的模型名<span
+                  class="tip"
+                  tabindex="0"
+                  role="note"
+                  aria-label="模型名只用来找到对应会话，不会切换 Arena 上实际使用的模型。"
+                  title="模型名只用来找到对应会话，不会切换 Arena 上实际使用的模型。"
+                  >?</span
+                >
+              </p>
+            </div>
+            <div class="actions">
+              <button id="copyUrl" class="small">复制地址</button
+              ><button id="copyKey" class="small">复制本地 Key</button>
+            </div>
+          </div>
+          <footer class="foot">
+            <span id="lastCheck">等待桌面服务</span
+            ><button id="openExtension" class="small quiet">打开扩展目录 ↗</button>
+          </footer>
+        </section>
+        <section id="settings" class="page">
+          <header class="pagehead">
+            <div>
+              <div class="eyebrow">SETTINGS</div>
+              <h1>设置</h1>
+            </div>
+          </header>
+          <article class="card section">
+            <div class="cardhead">
+              <h2>常用</h2>
+            </div>
+            <div class="cardbody" style="border-bottom: 1px solid var(--line)">
+              <h3>
+                发送模式<span
+                  class="tip"
+                  tabindex="0"
+                  role="note"
+                  aria-label="正常续聊只发最后一条用户消息（工具回合会带上本批调用和结果），依赖网页会话自身的上下文。需要客户端的系统指令或完整历史时选“携带客户端上下文”。保存后只影响之后的新请求。"
+                  title="正常续聊只发最后一条用户消息（工具回合会带上本批调用和结果），依赖网页会话自身的上下文。需要客户端的系统指令或完整历史时选“携带客户端上下文”。保存后只影响之后的新请求。"
+                  >?</span
+                >
+              </h3>
+              <div class="actions" style="margin-top: 12px">
+                <select id="sendMode" aria-label="消息发送模式" style="max-width: 360px">
+                  <option value="normal">正常续聊（默认）</option>
+                  <option value="full">携带客户端上下文</option></select
+                ><button id="saveSendMode">保存</button>
+              </div>
+              <p id="sendModeLive" class="meta" aria-live="polite">正在核验运行模式…</p>
+            </div>
+            <div class="cardbody form">
+              <label for="port">本机端口</label
+              ><input id="port" type="number" min="1024" max="65535" value="9090" /><label for="key"
+                >本地 API Key</label
+              ><input id="key" type="password" autocomplete="off" />
+              <div class="full actions">
+                <button id="save">保存</button><button id="stop" class="quiet">停止网关</button>
+              </div>
+              <p class="full meta">改端口前先停止网关，浏览器插件里的地址也要一起改。</p>
+            </div>
+          </article>
+          <details class="advanced">
+            <summary>高级 · 兼容桥（千面）</summary>
+            <div class="advanced-body">
+              <p class="meta">
+                浏览器插件能直连就不需要。已保存的桥会在“启动 / 检查连接”时一起启动。<span
+                  class="tip"
+                  tabindex="0"
+                  role="note"
+                  aria-label="CDP 端口用来定位千面实例，千面右下角的“回环端口”不是 CDP 端口。同一千面进程的多个实例可以共用一个 CDP 端口，但实例名要分别填写。"
+                  title="CDP 端口用来定位千面实例，千面右下角的“回环端口”不是 CDP 端口。同一千面进程的多个实例可以共用一个 CDP 端口，但实例名要分别填写。"
+                  >?</span
+                >
+              </p>
+              <div id="savedBridges"></div>
+              <div class="actions" style="margin-top: 12px">
+                <button id="addBridge">＋ 添加兼容桥</button>
+              </div>
+            </div>
+          </details>
+        </section>
+        <section id="diagnostics" class="page">
+          <header class="pagehead">
+            <div>
+              <div class="eyebrow">REQUESTS & DIAGNOSTICS</div>
+              <h1>请求与日志</h1>
+              <p class="muted">按模型别名查看请求阶段，不记录正文、工具参数或凭据。</p>
+            </div>
+          </header>
+          <article class="card">
+            <div class="cardhead">
+              <h2>网关链路事件</h2>
+              <button id="refreshGatewayLogs" class="small">刷新日志</button>
+            </div>
+            <div class="cardbody">
+              <div class="logbar">
+                <select id="logRoute">
+                  <option value="">全部绑定</option></select
+                ><input id="traceFilter" placeholder="按请求编号前缀筛选" /><span
+                  id="logCount"
+                  class="stat"
+                ></span>
+              </div>
+              <p id="gatewayLogNote" class="muted"></p>
+              <pre id="gatewayLog" class="pre">收到新请求后才有记录；历史请求不能补录。</pre>
+            </div>
+          </article>
+          <article class="card spaced">
+            <div class="cardhead">
+              <h2>工具名称审计</h2>
+              <select id="auditRoute" style="width: 240px"></select>
+            </div>
+            <div class="cardbody"><pre id="audit" class="pre"></pre></div>
+          </article>
+          <article class="card spaced">
+            <div class="cardhead">
+              <h2>本地活动</h2>
+              <button id="clearLogs" class="small">清空活动</button>
+            </div>
+            <div class="cardbody"><pre id="logs" class="pre">尚无记录</pre></div>
+          </article>
+        </section>
+      </main>
+    </div>
+    <div id="enrollment" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="enrollTitle">
+      <div class="dialog">
+        <div class="dialoghead">
+          <div>
+            <div class="eyebrow">ADD ACCOUNT</div>
+            <h2 id="enrollTitle">添加账号</h2>
+          </div>
+          <button id="closeEnrollment">关闭</button>
+        </div>
+        <div class="dialogbody">
+          <div id="enrollError" class="notice error hidden" role="alert"></div>
+          <div class="steps">
+            <span><b>1 连接浏览器</b></span
+            ><span>2 选择会话</span><span>3 设置模型名</span>
+          </div>
+          <div id="wizardGateway" class="notice hidden">
+            网关还没启动，先启动它。<button id="wizardStart" class="small">启动网关</button>
+          </div>
+          <ol class="wizard-guide" id="directGuide">
+            <li>在要接入的浏览器里登录 Arena 账号</li>
+            <li>打开 Arena 页面右侧的 A2API 面板，地址填 <b id="wizardUrl">http://127.0.0.1:9090</b></li>
+            <li>点击“启用接入”，这里会自动进入下一步</li>
+          </ol>
+          <p id="wizardWaiting" class="meta" aria-live="polite">正在等待浏览器接入…</p>
+          <div id="enrollSources"></div>
+          <div class="wizard-foot">
+            <button id="wizardRefresh" class="small quiet">手动刷新</button>
+            <button id="directMode" class="hidden" tabindex="-1" aria-hidden="true"></button>
+            <button id="wizardBridge" class="small quiet">直连不通？添加兼容桥（千面）</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      id="bridgeDialog"
+      class="overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bridgeTitle"
+    >
+      <div class="dialog">
+        <div class="dialoghead">
+          <div>
+            <div class="eyebrow">ADD COMPATIBILITY BRIDGE</div>
+            <h2 id="bridgeTitle">添加新桥</h2>
+          </div>
+          <button id="closeBridge">返回</button>
+        </div>
+        <div class="dialogbody">
+          <div id="bridgeError" class="notice error hidden" role="alert"></div>
+          <p class="muted">新增一条独立目标，不会替换已有桥。普通浏览器直连不需要填写。</p>
+          <label for="bridgeName">千面中的实际实例名称</label
+          ><input id="bridgeName" placeholder="例如：实例 8（不是扩展来源备注）" maxlength="80" /><label
+            for="cdpPort"
+            >千面调试端口 · CDP</label
+          ><input id="cdpPort" type="number" min="1024" max="65535" value="36938" />
+          <p class="meta">
+            同一千面进程可共用此端口；默认沿用此前的36938，若进程配置变化需重新核验。不要填右下角的“回环端口”。
+          </p>
+          <label
+            ><input id="bridgeConsent" type="checkbox" />
+            保存此目标，允许以后点击“一键启动”时启动或复用桥。不扫描其他实例。</label
+          >
+          <div class="bottom">
+            <span class="meta">目标有歧义会停止，不猜选实例。</span
+            ><button id="bridgeStart" class="primary">确认添加并启动</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="chooser" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="chooserTitle">
+      <div class="dialog">
+        <div class="dialoghead">
+          <div>
+            <div class="eyebrow">BIND EXISTING CONVERSATION</div>
+            <h2 id="chooserTitle">添加已有会话</h2>
+            <p id="chosenSource" class="muted"></p>
+          </div>
+          <button id="closeChooser">关闭</button>
+        </div>
+        <div class="dialogbody">
+          <div id="chooserError" class="notice error hidden" role="alert"></div>
+          <div class="steps">
+            <span>1 连接浏览器</span><span><b>2 选择会话</b></span
+            ><span>3 设置模型名</span>
+          </div>
+          <div id="historyPicker">
+            <input id="search" placeholder="搜索会话标题" />
+            <div id="history" class="history"></div>
+            <div class="bottom">
+              <span id="historyCount" class="muted">尚未加载</span
+              ><button id="more" class="small hidden">加载更多</button>
+            </div>
+          </div>
+          <label for="alias">模型名（客户端的 model 字段）</label
+          ><input id="alias" placeholder="例如 arena-writing" maxlength="64" spellcheck="false" autocomplete="off" />
+          <p id="aliasHint" class="meta">小写字母开头，可含数字和 . _ -，不能重复。</p>
+          <p class="meta spaced">启用后，客户端用这个模型名就会发到所选会话。这一步不会发送任何消息。</p>
+          <div class="bottom">
+            <span id="selection" class="muted">请选择已有会话</span
+            ><button id="bind" class="primary" disabled>启用会话并暴露模型</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      id="modelDialog"
+      class="overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modelDialogTitle"
+    >
+      <div class="dialog model-editor">
+        <div class="dialoghead">
+          <div>
+            <div class="eyebrow">MODEL EXPOSURE</div>
+            <h2 id="modelDialogTitle">将此会话暴露为模型</h2>
+          </div>
+          <button id="closeModel">关闭</button>
+        </div>
+        <div class="dialogbody">
+          <label for="modelName">对外模型名</label
+          ><input id="modelName" maxlength="64" spellcheck="false" autocomplete="off" />
+          <p class="meta">
+            全局唯一。小写字母开头，可使用数字、点、下划线和短横线。修改后客户端需使用新名称；不会更换账号、会话或
+            Arena 模型。
+          </p>
+          <p id="modelDialogError" role="alert" class="routehint"></p>
+          <div class="bottom">
+            <span class="meta">仅修改映射，不发送请求</span
+            ><button id="applyModel" class="primary">应用模型名</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script>
+      "use strict";
+      const $ = (id) => document.getElementById(id);
+      const state = {
+        ready: false,
+        busy: false,
+        config: { port: 9090, api_key: "" },
+        status: null,
+        sources: [],
+        routes: [],
+        source: null,
+        rows: [],
+        cursor: null,
+        selected: null,
+        events: [],
+        savedBridges: [],
+        catalogs: new Map(),
+        catalogRevision: 0,
+        autoHistoryAttempted: new Set(),
+        menus: new Set(),
+        collapsed: new Set(),
+        selectedAccount: null,
+        bridgeOrigin: "settings",
+      };
+      let polling = null,
+        timer;
+      const tags = new Map();
+      function error(text) {
+        for (const id of ["error", "chooserError", "enrollError", "bridgeError", "modelDialogError"]) {
+          $(id).textContent = text || "";
+          $(id).classList.toggle("hidden", !text);
+        }
+      }
+      function toast(text) {
+        $("toast").textContent = text;
+        $("toast").classList.remove("hidden");
+        clearTimeout(timer);
+        timer = setTimeout(() => $("toast").classList.add("hidden"), 4000);
+      }
+      async function api(name, ...args) {
+        if (!state.ready) throw Error("请在桌面工作台中操作");
+        const r = await window.pywebview.api[name](...args);
+        if (!r.ok) throw Error(r.error || "操作未完成");
+        return r.data;
+      }
+      function controls() {
+        for (const id of [
+          "startWorkspace",
+          "save",
+          "stop",
+          "refreshGatewayLogs",
+          "more",
+          "addAccount",
+          "addBridge",
+          "refreshAccounts",
+          "wizardStart",
+          "wizardRefresh",
+          "collapseAccounts",
+          "saveSendMode",
+        ])
+          $(id).disabled = !state.ready || state.busy;
+        const name = $("alias").value.trim(),
+          duplicate = state.routes.some((r) => r.alias === name),
+          sourceCurrent =
+            state.source &&
+            state.sources.some(
+              (s) =>
+                s.client_id === state.source.client_id &&
+                s.account_key === state.source.account_key &&
+                (s.session || "") === (state.source.session || "") &&
+                s.online &&
+                s.account_key,
+            );
+        $("bind").disabled =
+          !state.ready ||
+          state.busy ||
+          !state.selected ||
+          !/^[a-z][a-z0-9._-]{0,63}$/.test(name) ||
+          duplicate ||
+          !sourceCurrent;
+        $("aliasHint").textContent = duplicate
+          ? "这个模型名已被其他会话使用，请换一个。"
+          : state.source && !sourceCurrent
+            ? "所选浏览器已离线或账号变了，请关闭后重新选择。"
+            : "小写字母开头，可含数字和 . _ -，不能重复。";
+        $("bridgeStart").disabled =
+          !state.ready ||
+          state.busy ||
+          !$("bridgeConsent").checked ||
+          !$("bridgeName").value.trim() ||
+          !Number.isInteger(Number($("cdpPort").value)) ||
+          Number($("cdpPort").value) < 1024 ||
+          Number($("cdpPort").value) > 65535;
+        for (const id of ["closeEnrollment", "closeChooser", "closeBridge", "closeModel"])
+          $(id).disabled = state.busy;
+      }
+      async function action(fn) {
+        if (state.busy) return;
+        state.busy = true;
+        error("");
+        render();
+        try {
+          await fn();
+        } catch (e) {
+          error(e.message);
+        } finally {
+          try {
+            await refresh(true);
+          } finally {
+            state.busy = false;
+            render();
+          }
+        }
+      }
+      function element(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+      function button(text, fn, disabled = false) {
+        const e = element("button", "small", text);
+        e.disabled = disabled || state.busy || !state.ready;
+        e.onclick = () => action(fn);
+        return e;
+      }
+      function localButton(text, fn) {
+        const b = element("button", "small", text);
+        b.disabled = !state.ready || state.busy;
+        b.onclick = fn;
+        return b;
+      }
+      function accountGroups() {
+        const map = new Map();
+        const group = (key, label) => {
+          if (!map.has(key)) map.set(key, { key, label, sources: [], routes: [] });
+          return map.get(key);
+        };
+        for (const s of state.sources)
+          group(
+            s.account_key || "unknown:" + s.client_id,
+            s.account_key ? s.label : "身份未核验",
+          ).sources.push(s);
+        for (const r of state.routes) group(r.account_key, r.account_label || "已保存的账号").routes.push(r);
+        return [...map.values()];
+      }
+      function needsAttention(g) {
+        return (
+          g.routes.some((r) => r.uncertain) ||
+          (g.accountEnabled !== false &&
+            (g.sources.some((s) => !s.online || !s.account_key) ||
+              g.routes.some((r) => r.enabled && !r.online) ||
+              !g.sources.length))
+        );
+      }
+      function catalogKey(s) {
+        return [s.client_id, s.account_key, s.session || ""].join("|");
+      }
+      function catalogFor(s) {
+        return state.catalogs.get(catalogKey(s));
+      }
+      function pruneCatalogs() {
+        const keys = new Set(state.sources.map(catalogKey));
+        for (const key of state.catalogs.keys())
+          if (!keys.has(key)) {
+            state.catalogs.delete(key);
+            state.catalogRevision++;
+          }
+        for (const key of state.autoHistoryAttempted)
+          if (!keys.has(key)) state.autoHistoryAttempted.delete(key);
+      }
+      async function readCatalog(s, append = false) {
+        const key = catalogKey(s),
+          old = catalogFor(s),
+          entry = {
+            rows: append ? old?.rows || [] : [],
+            cursor: append ? old?.cursor : null,
+            loading: true,
+            error: "",
+          };
+        state.catalogs.set(key, entry);
+        state.autoHistoryAttempted.add(key);
+        state.catalogRevision++;
+        renderAccounts();
+        try {
+          const data = await api("workspace_action", "history", {
+            client_id: s.client_id,
+            account_key: s.account_key,
+            cursor: append ? entry.cursor : null,
+          });
+          if (!state.sources.some((now) => now.online && catalogKey(now) === key)) return;
+          const merged = append ? [...entry.rows, ...data.rows] : data.rows;
+          entry.rows = [...new Map(merged.map((r) => [r.context_key, r])).values()];
+          entry.cursor = data.cursor;
+        } catch (e) {
+          entry.error = e.message;
+        } finally {
+          entry.loading = false;
+          state.catalogRevision++;
+          state.accountSignature = null;
+          renderAccounts();
+        }
+      }
+      function scheduleHistory() {
+        if (
+          !state.ready ||
+          state.busy ||
+          !state.status?.send_mode_supported ||
+          !$("home").classList.contains("active") ||
+          document.querySelector(".overlay:not(.hidden)")
+        )
+          return;
+        const source = state.sources.find(
+          (s) =>
+            s.account_key === state.selectedAccount &&
+            s.online &&
+            s.account_key &&
+            s.history_enabled === true &&
+            !state.collapsed.has(s.account_key) &&
+            !state.autoHistoryAttempted.has(catalogKey(s)) &&
+            !state.routes.some((r) => r.client_id === s.client_id && (r.busy || r.uncertain || r.waiting)),
+        );
+        if (source && source.account_key === state.selectedAccount) {
+          state.autoHistoryAttempted.add(catalogKey(source));
+          void action(() => readCatalog(source));
+        }
+      }
+      function bindCatalogRow(s, row, entry) {
+        if (state.busy) return;
+        error("");
+        state.source = { ...s };
+        state.rows = entry.rows;
+        state.cursor = entry.cursor;
+        state.selected = row;
+        $("chosenSource").textContent = s.label + " · " + s.source_label;
+        $("alias").value = "";
+        state.suggestedAlias = "";
+        $("search").value = "";
+        selectRow(row);
+        openModal("chooser");
+        renderHistory();
+        $("historyPicker").classList.add("hidden");
+        $("alias").focus();
+        controls();
+      }
+      function catalogView(s) {
+        const entry = catalogFor(s);
+        if (!entry || !s.online) return null;
+        const box = element("div", "catalog"),
+          top = element("div", "catalog-top");
+        top.append(
+          element("b", "", "已有会话"),
+          element("span", "meta", entry.loading ? "正在加载…" : "已加载 " + entry.rows.length + " 条"),
+          button("刷新", () => readCatalog(s), entry.loading || !s.account_key),
+        );
+        box.append(top);
+        if (entry.error)
+          box.append(element("p", "routehint", entry.error + "（可点刷新重试）"));
+        const input = element("input");
+        input.placeholder = "搜索会话标题";
+        input.setAttribute("aria-label", "搜索此来源的已有会话");
+        input.value = entry.query || "";
+        const list = element("div", "catalog-list");
+        function rows() {
+          list.replaceChildren();
+          const q = input.value.trim().toLowerCase();
+          entry.query = input.value;
+          for (const row of entry.rows.filter((r) => r.title.toLowerCase().includes(q))) {
+            const bound = state.routes.find(
+                (r) => r.account_key === s.account_key && r.context_key === row.context_key,
+              ),
+              item = element("div", "catalog-row");
+            item.append(element("span", "catalog-title", row.title));
+            if (bound) item.append(element("span", "pill", "已绑定 · " + bound.alias));
+            else item.append(localButton("设置模型名", () => bindCatalogRow(s, row, entry)));
+            list.append(item);
+          }
+          if (!list.children.length && !entry.loading)
+            list.append(
+              element("p", "meta", entry.rows.length ? "没有匹配的已加载会话。" : "暂无已加载会话。"),
+            );
+        }
+        input.oninput = rows;
+        box.append(input, list);
+        rows();
+        if (entry.cursor) box.append(button("加载更多", () => readCatalog(s, true), entry.loading));
+        return box;
+      }
+
+      function sourceRow(s, wizard = false) {
+        const row = element("div", wizard ? "wizard-source" : "source"),
+          left = element("div");
+        left.append(
+          element("div", "source-meta", s.source_label || "未命名来源"),
+          element(
+            "p",
+            "meta",
+            (!s.online
+              ? "浏览器离线"
+              : !s.account_key
+                ? "身份未核验"
+                : s.transport === "bridge"
+                  ? "经兼容桥接入"
+                  : "扩展直连") +
+              " · ID " +
+              s.client_id.slice(-6),
+          ),
+        );
+        row.append(
+          left,
+          button(
+            wizard ? "选择会话" : catalogFor(s) ? "刷新会话" : "读取会话",
+            () => (wizard ? choose(s) : readCatalog(s)),
+            !s.online || !s.account_key,
+          ),
+        );
+        return row;
+      }
+      function toggleControl(label, on, fn, disabled = false) {
+        const b = button("", fn, disabled);
+        b.className = "toggle";
+        b.setAttribute("role", "switch");
+        b.setAttribute("aria-checked", String(on));
+        b.setAttribute("aria-label", label);
+        b.title = label;
+        b.append(element("span", "toggle-track"), element("span", "", on ? "已启用" : "未启用"));
+        return b;
+      }
+      function accountAction(g) {
+        return async () => {
+          await api("workspace_action", "account", {
+            account_key: g.key,
+            enabled: !g.accountEnabled,
+            confirmed: true,
+          });
+          toast(
+            g.accountEnabled
+              ? "账号已停用接入；在途请求继续，未交付浏览器的请求会被拒绝"
+              : "账号已启用；会话开关和原绑定保持不变",
+          );
+        };
+      }
+      function editModel(r) {
+        if (state.busy) return;
+        state.editingAlias = r.alias;
+        $("modelName").value = r.alias;
+        $("modelDialogError").textContent = "";
+        openModal("modelDialog");
+        $("modelName").focus();
+        modelControls();
+      }
+      function modelControls() {
+        const v = $("modelName").value.trim(),
+          duplicate = state.routes.some((r) => r.alias === v && r.alias !== state.editingAlias);
+        $("applyModel").disabled =
+          !state.ready ||
+          state.busy ||
+          !state.status?.account_controls_supported ||
+          !/^[a-z][a-z0-9._-]{0,63}$/.test(v) ||
+          duplicate ||
+          v === state.editingAlias;
+        $("modelDialogError").classList.toggle("hidden", !duplicate);
+        $("modelDialogError").textContent = duplicate ? "模型名已被其他会话使用，请换一个名称。" : "";
+      }
+      function routeCard(r) {
+        const tr = element("tr", "route" + (r.uncertain ? " route-needs-review" : "")),
+          title = element("td"),
+          model = element("td"),
+          status = element("td"),
+          enabled = element("td");
+        title.append(element("h3", "", r.title || "已有会话"));
+        const more = element("details"),
+          summary = element("summary", "", "更多 · " + (r.source_label || "已保存的浏览器"));
+        more.open = state.menus.has(r.alias);
+        more.ontoggle = () => {
+          if (!more.isConnected) return;
+          if (more.open) state.menus.add(r.alias);
+          else state.menus.delete(r.alias);
+        };
+        const acts = element("div", "actions");
+        acts.append(
+          button("查看请求", async () => {
+            navigate("diagnostics");
+            $("logRoute").value = r.alias;
+            await gatewayLogs();
+          }),
+          button("删除绑定", () => routeAction("delete", r), r.busy || r.uncertain || !!r.waiting),
+        );
+        if (!r.uncertain)
+          acts.append(
+            button(
+              "核对上轮",
+              () => routeAction("check", r),
+              (!r.online && !r.review_available) || r.busy || !!r.waiting,
+            ),
+          );
+        if (r.alias === "opus5.5" && String(r.source_label || "").replace(/\s/g, "") === "实例5")
+          acts.append(
+            button(
+              r.tool_reference ? "关闭工具文档试验" : "启用工具文档试验",
+              () => referenceAction(r),
+              !state.status?.tool_reference_supported || r.busy || r.uncertain || !!r.waiting,
+            ),
+          );
+        more.append(summary, acts);
+        title.append(more);
+        const edit = localButton("修改模型名", () => editModel(r));
+        edit.className = "model-edit";
+        edit.disabled =
+          edit.disabled || !state.status?.account_controls_supported || r.busy || r.uncertain || !!r.waiting;
+        model.append(element("code", "alias", r.alias), edit);
+        const label = r.busy
+          ? "请求执行中"
+          : r.waiting
+            ? "等待队列"
+            : r.uncertain
+              ? "结果待核对"
+              : r.account_enabled === false
+                ? "账号已停用"
+                : !r.enabled
+                  ? "会话未启用"
+                  : r.online
+                    ? "可用"
+                    : "浏览器离线";
+        status.append(
+          element(
+            "span",
+            "pill" +
+              (r.uncertain ? " warn" : r.online && r.enabled && r.account_enabled !== false ? " good" : ""),
+            label,
+          ),
+        );
+        if (r.waiting) status.append(element("p", "meta", "排队 " + r.waiting));
+        const control = toggleControl(
+          "启用此会话：" + (r.title || r.alias),
+          !!r.enabled,
+          () => routeAction(r.enabled ? "disable" : "restore", r),
+          r.busy || r.uncertain || !!r.waiting,
+        );
+        enabled.append(control);
+        const reason = r.busy
+          ? "请求正在执行，结束后可操作"
+          : r.waiting
+            ? "请求正在排队，暂不可切换"
+            : r.uncertain
+              ? "先核对上轮结果，再启用会话"
+              : "";
+        if (reason) {
+          const note = element("p", "switch-reason", reason);
+          note.id = "switch-reason-" + r.alias;
+          enabled.append(note);
+          control.title = reason;
+          control.setAttribute?.("aria-describedby", note.id);
+        }
+        if (r.uncertain) {
+          const review = button(
+            "核对上轮",
+            () => routeAction("check", r),
+            (!r.online && !r.review_available) || r.busy || !!r.waiting,
+          );
+          review.className = "review-action";
+          enabled.append(review);
+          if (!r.online && !r.review_available && !r.busy && !r.waiting)
+            enabled.append(element("p", "switch-reason", "浏览器在线后可核对，不会自动重发"));
+        }
+        const source = state.sources.find((s) => s.client_id === r.client_id);
+        if (source && source.account_key && source.account_key !== r.account_key)
+          title.append(element("p", "routehint", "这个浏览器登录的账号变了，会话仍绑定原账号。"));
+        tr.append(title, model, status, enabled);
+        return tr;
+      }
+      function renderAccounts() {
+        const groups = accountGroups(),
+          q = $("accountSearch").value.trim().toLowerCase(),
+          filter = $("accountFilter").value;
+        for (const g of groups)
+          g.accountEnabled =
+            /^[0-9a-f]{64}$/.test(g.key) &&
+            (g.sources[0]?.account_enabled ?? g.routes[0]?.account_enabled ?? true);
+        $("accountCount").textContent = groups.length;
+        $("sourceCount").textContent = state.sources.filter((s) => s.online && s.account_key).length;
+        $("routeCount").textContent = state.routes.length;
+        const count = groups.filter(needsAttention).length;
+        $("attentionCount").textContent = count ? "· " + count + " 组待处理" : "";
+        const shown = groups.filter(
+          (g) =>
+            (filter !== "attention" || needsAttention(g)) &&
+            (filter !== "online" || g.sources.some((s) => s.online && s.account_key)) &&
+            (!q ||
+              [
+                g.label,
+                ...g.sources.map((s) => s.source_label),
+                ...g.routes.flatMap((r) => [r.title, r.alias]),
+              ]
+                .join(" ")
+                .toLowerCase()
+                .includes(q)),
+        );
+        if (!shown.some((g) => g.key === state.selectedAccount))
+          state.selectedAccount = shown[0]?.key || null;
+        const signature = JSON.stringify([
+          q,
+          filter,
+          state.busy,
+          state.selectedAccount,
+          state.catalogRevision,
+          state.status?.account_controls_supported,
+          shown.map((g) => [
+            g.key,
+            g.label,
+            g.accountEnabled,
+            g.sources.map((s) => [s.client_id, s.label, s.source_label, s.online, s.account_key, s.session]),
+            g.routes.map((r) => [
+              r.alias,
+              r.title,
+              r.enabled,
+              r.account_enabled,
+              r.online,
+              r.busy,
+              r.uncertain,
+              r.review_available,
+              r.waiting,
+              r.tool_reference,
+            ]),
+          ]),
+        ]);
+        if (signature === state.accountSignature) return;
+        state.accountSignature = signature;
+        const box = $("accounts");
+        box.replaceChildren();
+        if (!shown.length) {
+          const e = element("div", "card empty");
+          e.append(
+            element(
+              "b",
+              "",
+              groups.length ? "没有匹配的账号" : state.status?.compatible ? "添加第一个账号" : "连接尚未就绪",
+            ),
+            element(
+              "p",
+              "",
+              groups.length
+                ? "调整搜索条件或筛选。"
+                : "接入来源后，在列表中启用账号和会话，再设置对外模型名。",
+            ),
+          );
+          e.append(localButton("＋ 添加账号来源", openEnrollment));
+          box.append(e);
+          return;
+        }
+        const layout = element("div", "account-layout"),
+          index = element("div", "account-index"),
+          head = element("div", "list-heading");
+        head.append(
+          element("span", "", "账号列表"),
+          element("span", "count", String(shown.length).padStart(2, "0")),
+        );
+        index.append(head);
+        for (const g of shown) {
+          const item = element("div", "account-item" + (g.key === state.selectedAccount ? " selected" : "")),
+            select = element("button", "account-select");
+          select.disabled = state.busy;
+          select.setAttribute("aria-pressed", String(g.key === state.selectedAccount));
+          select.append(element("strong", "", g.label || "身份未核验"));
+          const info = element("small");
+          info.append(
+            element(
+              "span",
+              "account-dot" +
+                (needsAttention(g) ? " warn" : g.sources.some((s) => s.online && s.account_key) ? "" : " off"),
+            ),
+            document.createTextNode(
+              (g.sources.some((s) => s.online && s.account_key) ? "浏览器在线" : "浏览器离线") +
+                " · " +
+                g.routes.length +
+                " 条会话",
+            ),
+          );
+          select.append(info);
+          select.onclick = () => {
+            state.selectedAccount = g.key;
+            state.accountSignature = null;
+            renderAccounts();
+          };
+          item.append(
+            select,
+            toggleControl(
+              "启用此账号：" + g.label,
+              g.accountEnabled,
+              accountAction(g),
+              !state.status?.account_controls_supported || !/^[0-9a-f]{64}$/.test(g.key),
+            ),
+          );
+          index.append(item);
+        }
+        index.append(element("p", "list-note", "关闭账号开关只停止对外提供，不退出登录。"));
+        const g = shown.find((g) => g.key === state.selectedAccount),
+          detail = element("article", "account account-detail"),
+          heading = element("div", "detail-heading"),
+          info = element("div");
+        info.append(
+          element("h2", "", g.label),
+          element("p", "", g.routes.length + " 条会话"),
+        );
+        heading.append(info, element("span", "pill", g.accountEnabled ? "账号接入已启用" : "账号接入已停用"));
+        detail.append(heading);
+        for (const s of g.sources) detail.append(sourceRow(s));
+        if (!g.sources.length)
+          detail.append(element("div", "source meta", "浏览器离线。会话设置已保留，不会转到其他账号。"));
+        const scroll = element("div", "table-scroll"),
+          table = element("table", "conversation-table"),
+          thead = element("thead"),
+          hr = element("tr");
+        for (const h of ["会话", "对外模型名", "运行状态", "启用会话"]) hr.append(element("th", "", h));
+        thead.append(hr);
+        const body = element("tbody");
+        for (const r of g.routes.filter(
+          (r) => !q || [g.label, r.title, r.alias].join(" ").toLowerCase().includes(q),
+        ))
+          body.append(routeCard(r));
+        table.append(thead, body);
+        scroll.append(table);
+        detail.append(scroll);
+        if (!body.children.length)
+          detail.append(
+            element(
+              "div",
+              "empty",
+              g.routes.length
+                ? "没有匹配的会话。"
+                : "还没有会话。在下方的已有会话里选一条，设置模型名即可。",
+            ),
+          );
+        for (const s of g.sources) {
+          const catalog = catalogView(s);
+          if (catalog) detail.append(catalog);
+        }
+        detail.append(
+          element("div", "status-foot", "账号和会话都启用后，模型名才可用。"),
+        );
+        layout.append(index, detail);
+        box.append(layout);
+      }
+
+      function renderEnrollment() {
+        if ($("enrollment").classList.contains("hidden")) return;
+        $("wizardUrl").textContent = `http://127.0.0.1:${state.config.port}`;
+        const box = $("enrollSources");
+        const signature = JSON.stringify([
+          state.busy,
+          state.sources.map((s) => [
+            s.client_id,
+            s.account_key,
+            s.online,
+            s.label,
+            s.source_label,
+            s.transport,
+          ]),
+        ]);
+        const gatewayOnline = !!state.status?.compatible && state.status.version === "0.5.0";
+        $("wizardGateway").classList.toggle("hidden", gatewayOnline);
+        const ready = state.sources.filter((s) => s.online && s.account_key);
+        $("wizardWaiting").textContent = !gatewayOnline
+          ? "网关启动后才能接入浏览器。"
+          : ready.length
+            ? "已接入 " + ready.length + " 个浏览器，选一个继续。"
+            : "正在等待浏览器接入…（每几秒自动检查）";
+        // 打开引导后新接入、且只有一个时，自动进入选会话这一步
+        const fresh = ready.filter((s) => !state.enrollKnown?.has(s.client_id));
+        if (fresh.length === 1 && !state.busy) {
+          state.enrollKnown.add(fresh[0].client_id);
+          setTimeout(() => {
+            if (!$("enrollment").classList.contains("hidden")) void action(() => choose(fresh[0]));
+          }, 0);
+        }
+        if (state.enrollSignature === signature) return;
+        state.enrollSignature = signature;
+        box.replaceChildren();
+        for (const s of state.sources) {
+          const row = sourceRow(s, true);
+          row.firstChild.prepend(element("b", "", s.label || "身份未核验"));
+          box.append(row);
+        }
+      }
+      function renderSendMode() {
+        const s = state.status || {},
+          saved = state.sendSettings || { mode: "normal", error: false },
+          names = { normal: "正常续聊 · 不附带客户端历史", full: "携带客户端上下文" };
+        let text;
+        if (!s.compatible) {
+          text = "网关未就绪；下次启动使用已保存模式。";
+        } else if (!s.send_mode_supported) {
+          text = "当前运行的旧网关不支持此选项，必须停止旧网关后启动新版；保存设置不会改变旧进程。";
+        } else if (s.send_mode_error || !names[s.send_mode]) {
+          text = "运行模式配置异常；网关拒绝发送，请重新保存模式。";
+        } else {
+          text = "当前网关：" + names[s.send_mode] + "。保存后仅影响后续进入的请求。";
+        }
+        const warning =
+          s.compatible && !s.send_mode_supported
+            ? "当前运行的网关尚未更新，仍按旧逻辑发送。请先停止旧网关再启动新版；本地保存发送模式不会改变旧进程。"
+            : s.compatible && s.send_mode_error
+              ? "发送模式配置异常，网关已阻止发送；请在网关设置中重新保存有效模式。"
+              : "";
+        $("sendModeWarning").textContent = warning;
+        $("sendModeWarning").classList.toggle("hidden", !warning);
+        $("activeSendMode").textContent =
+          s.send_mode_supported && names[s.send_mode] ? names[s.send_mode] : "发送模式待核验";
+        $("sendModeLive").textContent =
+          (saved.error ? "保存的模式配置异常。" : "本地设置：" + (names[saved.mode] || names.normal) + "。") +
+          text;
+      }
+      function render() {
+        renderSendMode();
+        const online = !!state.status?.compatible && state.status.version === "0.5.0";
+        $("service").textContent = online ? "网关在线" : "网关未就绪";
+        $("service").className = "pill" + (online ? " good" : "");
+        $("serviceDot").className = "status-dot" + (online ? " good" : "");
+        $("baseUrl").textContent = `http://127.0.0.1:${state.config.port}/v1`;
+        $("phase").textContent =
+          state.restorePhase || state.status?.phase?.message || "账号和会话分别控制，只有都启用的模型名可用。";
+        $("startWorkspace").textContent = state.busy ? "正在处理…" : online ? "检查连接" : "启动 / 检查连接";
+        renderAccounts();
+        for (const id of ["auditRoute", "logRoute"]) {
+          const old = $(id).value,
+            names = state.routes.map((r) => r.alias);
+          if ($(id).dataset.aliases !== JSON.stringify(names)) {
+            $(id).replaceChildren();
+            if (id === "logRoute") $(id).append(new Option("全部绑定", ""));
+            for (const r of state.routes) $(id).append(new Option(r.alias, r.alias));
+            if ([...$(id).options].some((o) => o.value === old)) $(id).value = old;
+            $(id).dataset.aliases = JSON.stringify(names);
+          }
+        }
+        renderAudit();
+        renderBridges();
+        renderEnrollment();
+        controls();
+      }
+      function renderBridges() {
+        const box = $("savedBridges");
+        box.replaceChildren();
+        if (!state.savedBridges.length) {
+          const empty = element("div", "empty");
+          empty.append(
+            element("p", "meta", "还没有保存兼容桥。"),
+          );
+          box.append(empty);
+          return;
+        }
+        for (const r of state.savedBridges) {
+          const row = element("div", "bridge-row"),
+            info = element("div"),
+            exited = (state.status?.bridge_processes || []).some(
+              (p) => p.name === r.name && p.cdp_port === r.cdp_port && p.exited,
+            );
+          info.append(
+            element("b", "", r.name),
+            element(
+              "p",
+              "meta",
+              "CDP " +
+                r.cdp_port +
+                " · " +
+                (exited ? "桥进程已退出，可重试" : "已保存随一键启动 · 接入结果以账号来源为准"),
+            ),
+          );
+          const actions = element("div", "actions");
+          actions.append(
+            button("启动 / 重试", async () => {
+              await api("compat_bridge", { ...r, confirmed: true });
+              toast("已处理此桥，请查看账号来源是否上线");
+            }),
+            button("取消随启动", async () => {
+              if (!confirm("仅取消以后随启动，不停止当前桥、不删除会话。确定？")) return;
+              const v = await api("compat_bridge", { ...r, action: "remove", confirmed: true });
+              state.savedBridges = v.saved_bridges;
+              toast(v.message);
+            }),
+          );
+          row.append(info, actions);
+          box.append(row);
+        }
+      }
+      function navigate(name) {
+        document.querySelectorAll(".page").forEach((p) => p.classList.toggle("active", p.id === name));
+        document
+          .querySelectorAll("[data-page]")
+          .forEach((n) => n.classList.toggle("active", n.dataset.page === name));
+        $("mainScroll").scrollTop = 0;
+        void refresh();
+      }
+      let modalFocus = null;
+      function openModal(id) {
+        modalFocus = document.activeElement;
+        $(id).classList.remove("hidden");
+        $(id).querySelector("button")?.focus();
+      }
+      function closeModal(id) {
+        if (state.busy) return;
+        $(id).classList.add("hidden");
+        if (modalFocus?.isConnected) modalFocus.focus();
+      }
+      function openEnrollment() {
+        if (state.busy) return;
+        error("");
+        state.enrollSignature = null;
+        // 记下已在线的浏览器，只有打开引导后新接入的才会自动跳到下一步
+        state.enrollKnown = new Set(state.sources.filter((s) => s.online && s.account_key).map((s) => s.client_id));
+        openModal("enrollment");
+        renderEnrollment();
+        void refresh();
+      }
+      function openBridge(origin = "settings") {
+        if (state.busy) return;
+        state.bridgeOrigin = origin;
+        error("");
+        $("enrollment").classList.add("hidden");
+        $("bridgeName").value = "";
+        $("cdpPort").value = "36938";
+        $("bridgeConsent").checked = false;
+        openModal("bridgeDialog");
+        $("bridgeName").focus();
+        controls();
+      }
+      function returnFromBridge() {
+        closeModal("bridgeDialog");
+        if (state.bridgeOrigin === "wizard") openEnrollment();
+      }
+      function renderAudit() {
+        const r = state.routes.find((r) => r.alias === $("auditRoute").value);
+        $("audit").textContent = r?.tool_audit
+          ? JSON.stringify(r.tool_audit, null, 2)
+          : "此绑定尚无携带工具的请求；审计仅保存在内存。";
+      }
+      function refresh(force = false) {
+        if (!state.ready) return Promise.resolve();
+        if (polling) return force ? polling.then(() => refresh()) : polling;
+        polling = readState().finally(() => {
+          polling = null;
+        });
+        return polling;
+      }
+      async function readState() {
+        try {
+          state.status = await api("status");
+          $("accountFeatureNote").classList.toggle(
+            "hidden",
+            !state.status.compatible || state.status.account_controls_supported === true,
+          );
+          if (state.status.compatible && state.status.version === "0.5.0") {
+            const v = await api("workspace_status");
+            state.sources = v.sources;
+            state.routes = v.routes;
+            if (v.account_preferences_error) error("账号开关配置异常；对外请求已阻止，未覆盖配置。");
+            pruneCatalogs();
+            if (v.load_error) error("绑定配置读取异常；没有自动覆盖原文件。请检查项目配置。");
+          } else {
+            state.sources = [];
+            state.routes = [];
+          }
+          render();
+          if ($("diagnostics").classList.contains("active")) {
+            await gatewayLogs();
+            const logs = await api("logs");
+            $("logs").textContent = logs.map((l) => l.time + " " + l.message).join("\n") || "尚无活动";
+          }
+          $("lastCheck").textContent = "最后检查 " + new Date().toLocaleTimeString();
+        } catch (e) {
+          error(e.message);
+        } finally {
+          setTimeout(scheduleHistory, 80);
+        }
+      }
+      async function choose(source) {
+        $("historyPicker").classList.remove("hidden");
+        $("enrollment").classList.add("hidden");
+        state.source = { ...source };
+        state.rows = [];
+        state.selected = null;
+        state.cursor = null;
+        $("chosenSource").textContent = source.label + " · " + source.source_label;
+        openModal("chooser");
+        $("alias").value = "";
+        state.suggestedAlias = "";
+        $("search").value = "";
+        $("selection").textContent = "请选择一条会话";
+        renderHistory();
+        await loadHistory(false);
+      }
+      async function loadHistory(append) {
+        const s = state.source;
+        const r = await api("workspace_action", "history", {
+          client_id: s.client_id,
+          account_key: s.account_key,
+          cursor: append ? state.cursor : null,
+        });
+        state.rows = append ? [...state.rows, ...r.rows] : r.rows;
+        state.cursor = r.cursor;
+        renderHistory();
+      }
+      // 根据会话标题生成一个合法且不重复的模型名；用户改过就不再覆盖
+      function suggestAlias(row) {
+        let base = String(row.title || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^[^a-z]+|-+$/g, "")
+          .slice(0, 40);
+        if (base.length < 3) base = "arena-" + String(row.context_key || "").replace(/[^0-9a-f]/g, "").slice(-6);
+        let name = base,
+          n = 2;
+        while (state.routes.some((r) => r.alias === name)) name = base + "-" + n++;
+        return name;
+      }
+      function selectRow(row) {
+        state.selected = row;
+        const current = $("alias").value.trim();
+        if (!current || current === state.suggestedAlias) {
+          state.suggestedAlias = suggestAlias(row);
+          $("alias").value = state.suggestedAlias;
+        }
+        $("selection").textContent = "将添加：" + row.title;
+      }
+      function renderHistory() {
+        const q = $("search").value.trim().toLowerCase();
+        $("history").replaceChildren();
+        for (const r of state.rows.filter((r) => r.title.toLowerCase().includes(q))) {
+          const e = element("button", state.selected?.context_key === r.context_key ? "selected" : "");
+          e.append(
+            element("b", "", r.title),
+            element("small", "", (r.archived ? "已归档 · " : "") + r.context_key.slice(-8)),
+          );
+          e.onclick = () => {
+            selectRow(r);
+            renderHistory();
+          };
+          $("history").append(e);
+        }
+        $("historyCount").textContent = "已加载 " + state.rows.length + " 条";
+        $("more").classList.toggle("hidden", !state.cursor);
+        controls();
+      }
+      async function referenceAction(r) {
+        const enable = !r.tool_reference;
+        if (
+          enable &&
+          !confirm(
+            "仅对实例5的 opus5.5 当前绑定启用工具文档试验。请确认该 Arena 会话沙盒已有 tools-index.md 和 tools-reference.md（/home/user/uploads/）。保留工具名单校验，不发送测试消息；新请求生效，可随时关闭。",
+          )
+        )
+          return;
+        await api("workspace_action", "control", {
+          alias: r.alias,
+          action: enable ? "reference_on" : "reference_off",
+          confirmed: true,
+        });
+        toast(enable ? "工具文档试验已开启；没有发送测试消息" : "已恢复原工具提示模式");
+      }
+      async function routeAction(kind, r) {
+        if (kind === "delete" && !confirm("仅删除本机绑定，不删除Arena会话。确定？")) return;
+        if (kind === "restore") {
+          await api("workspace_action", "restore", { alias: r.alias, confirmed: true });
+          toast("已核验原账号与原会话，没有发送消息");
+        } else {
+          const result = await api("workspace_action", "control", {
+            alias: r.alias,
+            action: kind,
+            confirmed: true,
+          });
+          if (kind === "check" && result.review_required === true) {
+            const warning =
+              "旧请求的关联信息已丢失，无法自动确认完成。\n\n请先在原账号、原会话人工核对，确认本轮已经停止。网页里的工具指令不会被补执行。\n\n确认后仅记录人工核对，绑定仍停用，需另行核验恢复；不代表服务端成功或工具已执行，也不会重发。\n\n你已核对上述事项，并确认结束这条旧请求的待核对状态吗？";
+            if (!confirm(warning)) return;
+            const ack = await api("workspace_action", "control", {
+              alias: r.alias,
+              action: "acknowledge_review",
+              confirmed: true,
+              acknowledged: true,
+              review_token: result.review_token,
+            });
+            if (ack.review_acknowledged !== true) throw Error("人工核对未被确认，未自动恢复");
+            toast("已记录人工核对；绑定保持停用，未重发或补执行。请再打开“启用此会话”开关。");
+          } else
+            toast(
+              kind === "check"
+                ? result.resolved
+                  ? "已核对上轮状态"
+                  : "仍未解除结果不确定状态，未自动重发"
+                : "绑定已更新",
+            );
+        }
+      }
+      async function routeTag(alias) {
+        return state.routes.find((r) => r.alias === alias)?.route_tag || "";
+      }
+      async function renderGatewayLogs() {
+        const q = $("traceFilter").value.trim(),
+          alias = $("logRoute").value,
+          tag = alias ? await routeTag(alias) : null;
+        const traces = tag
+          ? new Set(state.events.filter((e) => e.route_tag === tag).map((e) => e.trace))
+          : null;
+        const rows = state.events.filter(
+          (e) => (!q || e.trace.startsWith(q)) && (!traces || traces.has(e.trace)),
+        );
+        $("gatewayLog").textContent =
+          rows.map((e) => JSON.stringify(e)).join("\n") || "暂无匹配事件；旧请求无法补录。";
+        $("logCount").textContent = rows.length + " 条";
+      }
+      async function gatewayLogs() {
+        const r = await api("gateway_logs");
+        state.events = r.events;
+        $("gatewayLogNote").textContent =
+          r.message + (state.status?.logging?.write_failures ? " 日志写入失败，记录可能不完整。" : "");
+        await renderGatewayLogs();
+      }
+      async function copy(value) {
+        try {
+          await navigator.clipboard.writeText(value);
+        } catch {
+          const t = document.createElement("textarea");
+          t.value = value;
+          document.body.append(t);
+          t.select();
+          document.execCommand("copy");
+          t.remove();
+        }
+        toast("已复制");
+      }
+      $("startWorkspace").onclick = () =>
+        action(async () => {
+          const v = await api("workspace_start");
+          state.sources = v.sources;
+          state.routes = v.routes;
+          if (v.bridge_errors?.length)
+            error(v.bridge_errors.map((e) => e.name + "：" + e.message).join("；"));
+          else toast("连接已检查；会话开关保持不变，没有自动恢复绑定");
+        });
+      $("closeChooser").onclick = () => closeModal("chooser");
+      $("more").onclick = () => action(() => loadHistory(true));
+      $("search").oninput = renderHistory;
+      $("alias").oninput = controls;
+      $("bind").onclick = () =>
+        action(async () => {
+          await api("workspace_action", "bind", {
+            alias: $("alias").value.trim(),
+            client_id: state.source.client_id,
+            account_key: state.source.account_key,
+            context_key: state.selected.context_key,
+            confirmed: true,
+            allow_clients: true,
+          });
+          $("chooser").classList.add("hidden");
+          toast("模型别名已绑定；没有发送消息");
+        });
+      $("saveSendMode").onclick = () =>
+        action(async () => {
+          state.sendSettings = await api("save_send_mode", { mode: $("sendMode").value, confirmed: true });
+          toast("发送模式已保存；未清空历史或发送消息。运行状态见下方提示");
+        });
+      $("save").onclick = () =>
+        action(async () => {
+          const b = await api("save_config", { port: Number($("port").value), api_key: $("key").value });
+          state.config = b.config;
+          toast("设置已保存");
+        });
+      $("stop").onclick = () =>
+        action(async () => {
+          if (confirm("停止本窗口网关？请先停止客户端请求。")) {
+            const r = await api("stop", true);
+            toast(r.message || "已停止");
+          }
+        });
+      $("bridgeStart").onclick = () =>
+        action(async () => {
+          try {
+            const v = await api("compat_bridge", {
+              name: $("bridgeName").value,
+              cdp_port: Number($("cdpPort").value),
+              confirmed: $("bridgeConsent").checked,
+            });
+            state.savedBridges = v.saved_bridges || [];
+            $("bridgeConsent").checked = false;
+            $("bridgeDialog").classList.add("hidden");
+            toast("新桥已保存；等待扩展登记，原有桥和绑定保持不变");
+            if (state.bridgeOrigin === "wizard") {
+              state.enrollSignature = null;
+              $("enrollment").classList.remove("hidden");
+              renderEnrollment();
+            }
+          } finally {
+            const b = await api("boot");
+            state.savedBridges = b.saved_bridges || [];
+          }
+        });
+      $("addAccount").onclick = openEnrollment;
+      $("addBridge").onclick = () => openBridge("settings");
+      $("wizardBridge").onclick = () => openBridge("wizard");
+      $("closeEnrollment").onclick = () => closeModal("enrollment");
+      $("closeBridge").onclick = returnFromBridge;
+      $("directMode").onclick = () => {
+        $("directGuide").scrollIntoView({ block: "nearest" });
+      };
+      $("wizardRefresh").onclick = () => action(refresh);
+      $("refreshAccounts").onclick = () => action(refresh);
+      $("wizardStart").onclick = () =>
+        action(async () => {
+          const v = await api("workspace_start");
+          state.sources = v.sources;
+          state.routes = v.routes;
+          if (v.bridge_errors?.length)
+            error(v.bridge_errors.map((e) => e.name + "：" + e.message).join("；"));
+          else toast("网关已就绪；选择来源后才读取历史，不会自动绑定或恢复");
+        });
+      for (const id of ["bridgeName", "cdpPort"]) $(id).oninput = controls;
+      $("bridgeConsent").onchange = controls;
+      $("collapseAccounts").onclick = () => {
+        const groups = accountGroups();
+        if (groups.every((g) => state.collapsed.has(g.key))) state.collapsed.clear();
+        else state.collapsed = new Set(groups.map((g) => g.key));
+        $("collapseAccounts").textContent = state.collapsed.size ? "展开全部" : "收起全部";
+        renderAccounts();
+      };
+      $("accountSearch").oninput = renderAccounts;
+      $("accountFilter").onchange = renderAccounts;
+      document.addEventListener("keydown", (e) => {
+        const overlay = [...document.querySelectorAll(".overlay")].find(
+          (n) => !n.classList.contains("hidden"),
+        );
+        if (!overlay) return;
+        if (e.key === "Escape" && !state.busy) {
+          e.preventDefault();
+          if (overlay.id === "bridgeDialog") returnFromBridge();
+          else closeModal(overlay.id);
+        }
+        if (e.key === "Tab") {
+          const nodes = [...overlay.querySelectorAll('button,input,select,[tabindex="0"]')].filter(
+            (n) => !n.disabled && n.getClientRects().length,
+          );
+          if (!nodes.length) return;
+          const first = nodes[0],
+            last = nodes[nodes.length - 1];
+          if (e.shiftKey && (document.activeElement === first || !overlay.contains(document.activeElement))) {
+            e.preventDefault();
+            last.focus();
+          } else if (
+            !e.shiftKey &&
+            (document.activeElement === last || !overlay.contains(document.activeElement))
+          ) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      });
+      $("copyUrl").onclick = () => {
+        if (state.ready) copy(`http://127.0.0.1:${state.config.port}/v1`);
+      };
+      $("copyKey").onclick = () => {
+        if (state.ready) copy(state.config.api_key);
+      };
+      $("openExtension").onclick = () => action(() => api("open_item", "extension"));
+      $("clearLogs").onclick = () => action(() => api("clear_logs"));
+      $("refreshGatewayLogs").onclick = () => action(gatewayLogs);
+      $("traceFilter").oninput = renderGatewayLogs;
+      $("logRoute").onchange = renderGatewayLogs;
+      $("auditRoute").onchange = renderAudit;
+      document.querySelectorAll("[data-page]").forEach((b) => (b.onclick = () => navigate(b.dataset.page)));
+      $("closeModel").onclick = () => closeModal("modelDialog");
+      $("modelName").oninput = modelControls;
+      $("applyModel").onclick = () =>
+        action(async () => {
+          await api("workspace_action", "rename", {
+            alias: state.editingAlias,
+            new_alias: $("modelName").value.trim(),
+            confirmed: true,
+          });
+          $("modelDialog").classList.add("hidden");
+          toast("对外模型名已更新；账号和会话保持不变");
+        });
+      async function boot() {
+        if (state.ready) return;
+        state.ready = true;
+        try {
+          const b = await api("boot");
+          state.config = b.config;
+          state.sendSettings = b.send_settings || { mode: "normal", error: false };
+          $("sendMode").value = state.sendSettings.mode || "normal";
+          state.savedBridges = b.saved_bridges || [];
+          $("port").value = b.config.port;
+          $("key").value = b.config.api_key;
+          $("version").textContent = "界面 0.6.0 · 网关 " + b.version;
+          $("preview").classList.add("hidden");
+          if (b.warning) error(b.warning);
+          await refresh();
+        } catch (e) {
+          state.ready = false;
+          error(e.message);
+        }
+        controls();
+      }
+      window.addEventListener("pywebviewready", boot);
+      if (window.pywebview?.api) boot();
+      setTimeout(() => {
+        if (!state.ready) {
+          $("preview").classList.remove("hidden");
+          controls();
+        }
+      }, 1200);
+      setInterval(refresh, 3000);
+      controls();
+    </script>
+  </body>
+</html>

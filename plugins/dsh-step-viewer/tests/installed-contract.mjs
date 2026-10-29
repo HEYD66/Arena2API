@@ -1,0 +1,22 @@
+if(!process.env.DSH_NODE_MODULES) throw new Error('Set DSH_NODE_MODULES to the installed DSH resources/app/node_modules directory.');
+import {pathToFileURL} from 'node:url';import path from 'node:path';import fs from 'node:fs';import assert from 'node:assert/strict';import vm from 'node:vm';
+const root=path.resolve(process.argv[2]||path.join(import.meta.dirname,'..'));
+const base=(process.env.DSH_NODE_MODULES||'').replace(/[\/]?$/, '/')+"@deepseek-ai/";
+const boot=await import(pathToFileURL(base+'dsh-app-boot/lib/index.js'));
+const {parseInstallSpec}=await import(pathToFileURL(base+'dsh-plugin-manager/lib/index.js'));
+assert.equal(parseInstallSpec(root).kind,'path');
+// Read the installed host slot declaration, rather than assuming any named slot is additive.
+const conversationClient=fs.readFileSync(base+'dsh-client-ui-conversation/lib/client.js','utf8');
+const target='conversation.session.header.utilities';
+const declared=conversationClient.match(new RegExp('"'+target.replaceAll('.', '\\.')+'"\\s*:\\s*\\{\\s*kind:\\s*"([^" ]+)"'));
+assert.equal(declared?.[1],'list','Our button must use an additive list slot, never the occupied single corner');
+assert.match(conversationClient,/"conversation\.session\.header\.corner"\s*:\s*\{\s*kind:\s*"single"/);
+const patches=boot.loadOverlayPatches('dsh',path.join(root,'cordis.patch.yml'));
+const entries=boot.composeEntries([patches]);assert.equal(entries.length,1);assert.equal(entries[0].name,'dsh-step-viewer');assert.equal(entries[0].id,'dsh-step-viewer');
+const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json')));assert(pkg.dsh.bundle.patch);assert(pkg.exports['./client']);assert.equal(Object.keys(pkg.dependencies||{}).length,0);assert.equal(Object.keys(pkg.scripts||{}).length,0);
+const host=await import(pathToFileURL(path.join(root,'index.js')));assert.equal(typeof host.apply,'function');assert.equal(host.apply({}),undefined);
+let client,registration,descriptor;
+vm.runInNewContext(fs.readFileSync(path.join(root,'client.js'),'utf8'),{window:{__ModuleLoader__:{load(x){assert.equal(x.id,pkg.name);client=x.factory(()=>({createElement(){}}));}}},Set,Map,WeakSet,JSON,Number,Object});
+client.apply({uiSession:{provide(d){descriptor=d;}},slots:{inject(name,fn){assert.equal(name,'conversation.session.header.utilities');fn();},register(o,C){registration={o,C};}}});
+assert.equal(registration.o.id,pkg.name);assert.equal(typeof registration.C,'function');assert(descriptor.hooks.includes('executionTrace'));assert(descriptor.props.includes('loadExecutionOlder'));
+console.log('PASS installed DSH bundle parser/composer/install-spec + host/client registration; no profile change/network/tools.');

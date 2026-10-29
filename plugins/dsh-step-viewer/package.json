@@ -1,0 +1,38 @@
+{
+  "name": "dsh-step-viewer",
+  "version": "0.1.1-gpl.1",
+  "type": "module",
+  "private": true,
+  "description": "执行过程：逐步查看当前会话的工具名称、参数、代码、真实返回与公开过程文本。只读，不执行或重放工具。",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "icon.svg",
+    "LICENSE",
+    "src",
+    "build.py",
+    "NOTICE.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "license": "GPL-3.0-only"
+}

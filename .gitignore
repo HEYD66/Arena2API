@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.env
+*.log
+.DS_Store
+.idea/
+.venv/
+state.json
+golden_request.json
+logs/
+session.log
+arena_capture.txt
+backups/
+
+# Desktop local configuration and runtime files (never commit keys)
+/.console/
+/.test-tmp/
+/desktop-install-result.txt
+
+# 便携运行库只随 Release 的 zip 分发
+/runtime/

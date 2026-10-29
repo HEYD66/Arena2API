@@ -1,0 +1,31 @@
+{
+ "ok": true,
+ "date": "2026-10-29",
+ "source_commit": "517c9bb",
+ "acceptance": "Portable runtime offline tests and ephemeral gateway health passed on build host; native GUI not re-verified in this build",
+ "target": "Windows 10/11 x64",
+ "python": "3.13.16",
+ "node": "v22.23.3",
+ "qt": "6.8.3",
+ "extension_version": "1.6.0",
+ "dsh_plugin_version": "0.1.1-gpl.1",
+ "python_tests": 354,
+ "python_tests_passed": 354,
+ "javascript_suites": 14,
+ "javascript_suites_passed": 14,
+ "system_path_python_node_required": false,
+ "own_ephemeral_gateway_health": 200,
+ "own_test_gateway_stopped": true,
+ "plugin_model_tests": 15,
+ "plugin_ui_test": "not run (needs jsdom, not bundled; same as 2026-10-19)",
+ "native_window_retested": false,
+ "native_window_note": "Launchers, desktop/app.py and desktop/core.py are byte-identical (ignoring CRLF) to the 2026-10-19 portable build; its result applies: normal sandbox mode failed on the build host, compatibility mode passed",
+ "live_model_requests": 0,
+ "private_data_copied": false,
+ "validation_limits": [
+  "No clean Windows VM / GPU matrix",
+  "Native GUI not re-run for this build",
+  "Browser extension and DSH plugin not installed into a live browser/DSH during this build",
+  "DSH installed-host tests skipped (DSH_NODE_MODULES unset)"
+ ]
+}

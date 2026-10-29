@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Arena2API",
+  "version": "1.6.0",
+  "description": "发现此浏览器配置的Arena账号来源，按模型别名连接已有对话；不新建会话。",
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://arena.ai/*",
+    "http://127.0.0.1:*/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://arena.ai/*"
+      ],
+      "js": [
+        "conversation/chat-trace.js",
+        "conversation/chat-tools.js",
+        "conversation/chat-core.js",
+        "conversation/history.js",
+        "conversation/content.js",
+        "conversation/panel.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Arena2API · 展开/收起页内账号来源设置"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
