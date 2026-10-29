@@ -13,7 +13,7 @@
 | `Arena2api-portable-win-x64-2026-10-29.zip` | 便携主程序，自带 Python、Node.js、Qt 运行库，解压即用 |
 | `Arena2API-browser-extension-1.6.0.zip` | 浏览器扩展 |
 | `dsh-step-viewer-0.1.1-gpl.1.tgz` | DSH “执行过程”插件（可选） |
-| `使用手册.md`、`SHA256SUMS.txt` | 使用手册和校验值 |
+| `Arena2API-manual-zh-CN.md`、`SHA256SUMS.txt` | 使用手册（与仓库里的 `使用手册.md` 相同）和校验值 |
 
 仓库里只有源码，不含 `runtime\` 运行库，直接克隆下来双击启动器是跑不起来的。普通使用请下载 Releases 里的便携包。
 
