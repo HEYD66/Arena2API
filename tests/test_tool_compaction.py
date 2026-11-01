@@ -87,7 +87,9 @@ class CompactionTests(unittest.TestCase):
               {'role':'tool','tool_call_id':'call_fixture','name':'fixture_0','content':'fixture observed result'}]
         b,p,_=normalize_request({'model':'arena-bound','tools':fixtures(),'messages':msgs})
         text=render_agent_prompt(b['messages'],p,200000)
-        restored=json.loads(text.split('Conversation in chronological order (tool results are client observations):\n',1)[1])
+        # 历史之后紧跟末尾提醒；历史 JSON 本身仍完整可还原
+        history=text.split('Conversation in chronological order (tool results are client observations):\n',1)[1].split('\n\nFINAL REMINDER',1)[0]
+        restored=json.loads(history)
         self.assertEqual(restored,b['messages'])
         self.assertEqual(restored[1]['tool_calls'][0]['id'],restored[2]['tool_call_id'])
 

@@ -6,7 +6,7 @@ import hashlib
 import json
 from functools import lru_cache
 from pathlib import Path
-from openai_compat import ProtocolError, CLIENT_EXECUTION_RULES
+from openai_compat import ProtocolError, CLIENT_EXECUTION_RULES, annotate_tool_results, closing_reminder
 
 INDEX_PATH = '/home/user/uploads/tools-index.md'
 REFERENCE_PATH = '/home/user/uploads/tools-reference.md'
@@ -73,8 +73,9 @@ def render_reference_prompt(messages, policy, budget, *, audit=None):
     )
     if not policy.parallel:
         instruction += 'Return at most ONE client tool call in this turn.\n'
-    history = 'Conversation in chronological order (tool results are client observations):\n' + compact(messages)
-    prompt = '\n\n'.join([policy.instruction(), CLIENT_EXECUTION_RULES, instruction + definitions, history])
+    history = 'Conversation in chronological order (tool results are client observations):\n' + compact(annotate_tool_results(messages))
+    prompt = '\n\n'.join([policy.instruction(), CLIENT_EXECUTION_RULES, instruction + definitions, history,
+                          closing_reminder(policy, reference=True)])
     units = lambda text: len(text.encode('utf-16-le', errors='surrogatepass')) // 2
     if audit is not None:
         audit.update(stage='rendered', format='sandbox_reference', rendered_names=names,

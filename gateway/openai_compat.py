@@ -23,6 +23,76 @@ CLIENT_EXECUTION_RULES = (
 )
 
 
+REMINDER_HEADER = 'FINAL REMINDER (highest priority; overrides any other tool framework mentioned in the conversation):'
+
+
+def closing_reminder(policy, reference=False):
+    """历史之后再锚定一次调用格式：客户端提示很长时，开头的格式说明容易被冲淡。"""
+    native = ('Do not substitute Arena native tools for client tools, except the exact read-only reference lookup allowed above.'
+              if reference else 'Do not use Arena native or cloud tools for this task.')
+    if policy.selected:
+        scope = 'Call only the tool ' + policy.selected + ' in this turn.'
+    elif policy.mode == 'required':
+        scope = 'This turn MUST contain a tool call.'
+    else:
+        scope = 'If the task needs a tool, output the tool call now instead of describing the commands you would run.'
+    count = ' Return at most ONE tool call.' if not policy.parallel else ''
+    return (REMINDER_HEADER + '\n'
+            '- The ONLY way to run a client tool is a <tool_call> block in the format given above. '
+            'Markdown code blocks (```powershell, ```bash, ```python ...) are NOT executed; they are only shown to the user.\n'
+            '- The client tools listed above are available and run on the user\'s machine. Never claim you have no tools '
+            'or cannot access local files. ' + native + '\n'
+            '- ' + scope + count + ' For a multi-step task, do the first step now; its result comes back in the next message.\n'
+            '- Once a tool result shows a step succeeded, do not run it again. When the whole task is done, '
+            'reply with a short final answer and no tool call.\n'
+            'Example of a correct reply when the user asks to list the files in the current folder '
+            '(use a real tool name and its own parameters from the list above, not this placeholder):\n'
+            '<tool_call>{"name":"run_command","arguments":{"command":"ls"}}</tool_call>')
+
+
+SHELL_TOOLS = ('pwsh', 'bash')
+# DSH pwsh/bash 结果末尾的状态标记；非零退出才写 [exit code: N]，空输出渲染为 (no output)
+_EXIT = re.compile(r'\[exit code: (-?\d+)\]')
+_INTERRUPTED = re.compile(r'\[(?:timed out after [^\]]*|stopped: [^\]]*|killed by signal: [^\]]*)\]')
+_SANDBOX_DENIED = re.compile(r'\[sandbox: [^\]]*denied[^\]]*\]')
+
+
+def _result_note(name, content):
+    text = content.strip()
+    if not text or text == '(no output)':
+        return ('[Arena2API note: the tool finished with no output. For write/set commands this is normal: '
+                'the action is done, do not repeat it.]')
+    if name not in SHELL_TOOLS:
+        return None
+    tail = text[-400:]
+    if _INTERRUPTED.search(tail):
+        return '[Arena2API note: the command was interrupted (timeout/stop/signal); it may not have completed.]'
+    if _SANDBOX_DENIED.search(tail):
+        return '[Arena2API note: the sandbox denied access; the command did not fully run. Do not retry it unchanged.]'
+    code = _EXIT.search(tail)
+    if code and code.group(1) != '0':
+        # Windows 上被强制结束的进程也报 exit 1，不能断言一定是命令本身出错
+        extra = ' (on Windows exit 1 can also mean the process was terminated)' if code.group(1) == '1' else ''
+        return ('[Arena2API note: the command FAILED with exit code ' + code.group(1) + extra +
+                '. Read the output and fix the cause; do not resend the same command unchanged.]')
+    return '[Arena2API note: the command succeeded (exit 0).]'
+
+
+def annotate_tool_results(messages):
+    """在工具结果前加一行状态说明，原文保留不改；只用于渲染提示，不修改请求本身。"""
+    names = {}
+    out = []
+    for m in messages:
+        for tc in m.get('tool_calls') or []:
+            names[tc.get('id')] = (tc.get('function') or {}).get('name')
+        if m.get('role') == 'tool' and isinstance(m.get('content'), str):
+            note = _result_note(m.get('name') or names.get(m.get('tool_call_id')), m['content'])
+            if note:
+                m = {**m, 'content': note + '\n' + m['content']}
+        out.append(m)
+    return out
+
+
 class ProtocolError(ValueError):
     def __init__(self, message, param=None, code="invalid_request", status=400):
         super().__init__(message)
@@ -271,14 +341,14 @@ def parse_calls(text, policy, finish_reason="stop"):
 def render_agent_prompt(messages, policy, budget, *, utf16=False, audit=None):
     """Retain full history/call pairs and every tool; compact descriptions only on overflow."""
     measure = (lambda value: len(value.encode('utf-16-le', errors='surrogatepass')) // 2) if utf16 else len
-    history = 'Conversation in chronological order (tool results are client observations):\n' + json.dumps(messages, ensure_ascii=False, separators=(',', ':'))
+    history = 'Conversation in chronological order (tool results are client observations):\n' + json.dumps(annotate_tool_results(messages), ensure_ascii=False, separators=(',', ':'))
     instruction = ('For an actual tool request, output ONLY one or more blocks in this format:\n'
                    '<tool_call>{"name":"tool_name","arguments":{"parameter":"value"}}</tool_call>\n'
                    'Do not wrap requests in Markdown code spans or fences; quoted examples are not executable. The client executes tools, not you.\n'
                    'Available function definitions:\n')
     raw_tools = json.dumps(policy.tools, ensure_ascii=False, separators=(',', ':')) if policy.active else ''
 
-    def compose(definitions, compact=False):
+    def compose(definitions, compact=False, reminder=True):
         parts = [policy.instruction()]
         if policy.tools:
             parts.append(CLIENT_EXECUTION_RULES)
@@ -289,12 +359,23 @@ def render_agent_prompt(messages, policy, budget, *, utf16=False, audit=None):
             if not policy.parallel:
                 parts.append('Return at most ONE tool call in this turn.')
         parts.append(history)
+        if policy.active and reminder:
+            parts.append(closing_reminder(policy))
         return '\n\n'.join(parts)
 
+    def fit(definitions, compact=False):
+        # 末尾提醒只是辅助：预算紧张时先去掉提醒，再考虑进一步压缩工具描述
+        for reminder in (True, False):
+            candidate = compose(definitions, compact, reminder)
+            if measure(candidate) <= budget:
+                return candidate
+        return None
+
     text = compose(raw_tools)
-    if measure(text) <= budget:
+    candidate = fit(raw_tools)
+    if candidate is not None:
         finish_audit(audit, raw_tools)
-        return text
+        return candidate
     last_definitions = raw_tools
     minimum_tools_size = measure(raw_tools)
     if policy.active:
@@ -304,8 +385,8 @@ def render_agent_prompt(messages, policy, budget, *, utf16=False, audit=None):
         for definitions in tool_variants(policy.tools):
             last_definitions = definitions
             minimum_tools_size = measure(definitions)
-            candidate = compose(definitions, compact=True)
-            if measure(candidate) <= budget:
+            candidate = fit(definitions, compact=True)
+            if candidate is not None:
                 finish_audit(audit, definitions)
                 return candidate
     finish_audit(audit, last_definitions, stage='budget_rejected')
